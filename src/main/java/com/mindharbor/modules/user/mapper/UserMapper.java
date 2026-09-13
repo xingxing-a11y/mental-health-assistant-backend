@@ -1,0 +1,18 @@
+package com.mindharbor.modules.user.mapper;
+import java.util.Optional;
+
+import com.mindharbor.modules.user.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+public interface UserMapper extends JpaRepository<User, Long> {
+
+    Optional<User> findByUsername(String username);
+
+    Page<User> findAll(Pageable pageable);
+}
+
+
+
+

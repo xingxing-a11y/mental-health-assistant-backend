@@ -1,0 +1,34 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Maven build output
+target/
+out/
+*.class
+*.jar
+*.war
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Application logs and local data
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+chroma_data/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+

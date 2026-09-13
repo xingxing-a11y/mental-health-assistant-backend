@@ -1,0 +1,54 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+spring:
+  application:
+    name: mental-health-assistant
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/mindharbor?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    open-in-view: false
+  ai:
+    retry:
+      # 对话失败时不重复等待，避免一次请求叠加多轮重试延迟。
+      max-attempts: ${AI_RETRY_MAX_ATTEMPTS:1}
+    openai:
+      base-url: ${AI_BASE_URL:}
+      api-key: ${AI_API_KEY:}
+      chat:
+        options:
+          model: ${AI_MODEL:}
+          max-tokens: ${AI_MAX_TOKENS:512}
+      embedding:
+        options:
+          model: ${AI_EMBEDDING_MODEL:}
+    vectorstore:
+      chroma:
+        # 首次启动时自动创建不存在的知识库集合。
+        initialize-schema: true
+        client:
+          # Spring AI 会将 host 直接作为 URI 使用，必须包含协议。
+          host: ${CHROMA_HOST:http://localhost}
+          port: ${CHROMA_PORT:8000}
+          key-token: ${CHROMA_KEY_TOKEN:}
+        collection-name: ${CHROMA_COLLECTION:mental-health-knowledge}
+logging:
+  level:
+    root: INFO
+    com.mindharbor: INFO
+    org.hibernate.SQL: WARN
+security:
+  cookie:
+    secure: ${COOKIE_SECURE:false}
+  jwt:
+    secret: ${JWT_SECRET:}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:7200}
+rag:
+  chunk-size: ${RAG_CHUNK_SIZE:1000}
+  chunk-overlap: ${RAG_CHUNK_OVERLAP:100}
