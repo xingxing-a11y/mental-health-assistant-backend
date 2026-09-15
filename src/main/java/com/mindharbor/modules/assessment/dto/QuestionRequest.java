@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -22,7 +21,8 @@ public class QuestionRequest {
     @Size(max = 1000, message = "题目内容不能超过 1000 个字符")
     private String content;
 
-    @NotEmpty(message = "题目至少需要一个选项")
+    private String type = "SINGLE";
+
     @Valid
     private List<OptionRequest> options;
 

@@ -23,6 +23,8 @@ public interface AssessmentService {
 
     Object submit(AssessmentSubmitRequest request);
 
+    Object analyze(Long resultId);
+
     List<?> history();
 
 }

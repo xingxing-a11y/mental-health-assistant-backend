@@ -25,5 +25,9 @@ public class AssessmentSubmitRequest {
         private Long questionId;
 
         private Long optionId;
+
+        private List<Long> optionIds;
+
+        private String textAnswer;
     }
 }

@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS assessment_questions (
     scale_id BIGINT NOT NULL,
     question_order INT,
     content VARCHAR(255),
+    type VARCHAR(32) NOT NULL DEFAULT 'SINGLE',
     PRIMARY KEY (id),
     KEY idx_assessment_questions_scale_id (scale_id),
     CONSTRAINT fk_assessment_questions_scale
@@ -109,6 +110,7 @@ CREATE TABLE IF NOT EXISTS articles (
     summary VARCHAR(255),
     content LONGTEXT,
     updated_at TIMESTAMP(6) NOT NULL,
+    updated_by VARCHAR(255),
     PRIMARY KEY (id)
 ) ENGINE = InnoDB;
 

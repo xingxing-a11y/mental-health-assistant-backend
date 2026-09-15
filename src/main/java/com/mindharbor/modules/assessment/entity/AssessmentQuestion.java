@@ -30,6 +30,8 @@ public class AssessmentQuestion {
 
     private String content;
 
+    private String type = "SINGLE";
+
     @TableField(exist = false)
     private List<AssessmentOption> options = new ArrayList<>();
 }

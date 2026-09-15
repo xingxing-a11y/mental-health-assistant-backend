@@ -118,8 +118,13 @@ public class AssessmentServiceImpl implements AssessmentService {
             question.setScale(scale);
             question.setQuestionOrder(request.getOrder());
             question.setContent(request.getContent());
+            String type = normalizeQuestionType(request.getType());
+            question.setType(type);
+            validateQuestionOptions(type, request.getOptions());
 
-            for (OptionRequest optionRequest : request.getOptions()) {
+            for (OptionRequest optionRequest : request.getOptions() == null
+                    ? List.<OptionRequest>of()
+                    : request.getOptions()) {
                 AssessmentOption option = new AssessmentOption();
                 option.setLabel(optionRequest.getLabel());
                 option.setScore(optionRequest.getScore());
@@ -151,7 +156,10 @@ public class AssessmentServiceImpl implements AssessmentService {
         int maxScore = 0;
         List<AssessmentQuestion> scaleQuestions = questionMapper
                 .findByScaleIdOrderByQuestionOrderAsc(request.getScaleId());
-        scaleQuestions.forEach(question -> question.setOptions(optionMapper.findByQuestionId(question.getId())));
+        scaleQuestions.forEach(question -> {
+            question.setOptions(optionMapper.findByQuestionId(question.getId()));
+            question.setType(normalizeQuestionType(question.getType()));
+        });
         if (scaleQuestions.isEmpty()) {
             throw new IllegalArgumentException("当前量表暂无题目");
         }
@@ -161,27 +169,34 @@ public class AssessmentServiceImpl implements AssessmentService {
 
         Set<Long> answeredQuestionIds = new HashSet<>();
         for (AssessmentQuestion question : scaleQuestions) {
-            maxScore += question.getOptions().stream()
-                    .mapToInt(option -> option.getScore() == null ? 0 : option.getScore())
-                    .max()
-                    .orElse(0);
+            maxScore += maxQuestionScore(question);
         }
         for (AssessmentSubmitRequest.Answer answer : request.getAnswers()) {
-            if (answer == null
-                    || answer.getQuestionId() == null
-                    || answer.getOptionId() == null
+            if (answer == null || answer.getQuestionId() == null
                     || !answeredQuestionIds.add(answer.getQuestionId())) {
                 throw new IllegalArgumentException("题目答案存在重复或缺失");
             }
             AssessmentQuestion question = questionMapper
                     .findByIdAndScaleId(answer.getQuestionId(), request.getScaleId())
                     .orElseThrow(() -> new IllegalArgumentException("题目不属于当前量表"));
-            AssessmentOption option = question.getOptions()
-                    .stream()
-                    .filter(item -> item.getId().equals(answer.getOptionId()))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("选项不存在"));
-            score += option.getScore();
+            String type = normalizeQuestionType(question.getType());
+            if ("TEXT".equals(type)) {
+                if (answer.getTextAnswer() == null || answer.getTextAnswer().isBlank()) {
+                    throw new IllegalArgumentException("请完成全部题目后再提交");
+                }
+                continue;
+            }
+            List<Long> optionIds = answerOptionIds(answer, type);
+            if (optionIds.isEmpty() || optionIds.size() != new HashSet<>(optionIds).size()) {
+                throw new IllegalArgumentException("请完成全部题目后再提交");
+            }
+            for (Long optionId : optionIds) {
+                AssessmentOption option = question.getOptions().stream()
+                        .filter(item -> item.getId().equals(optionId))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("选项不存在"));
+                score += option.getScore() == null ? 0 : option.getScore();
+            }
         }
         if (answeredQuestionIds.size() != scaleQuestions.size()) {
             throw new IllegalArgumentException("请完成全部题目后再提交");
@@ -190,30 +205,45 @@ public class AssessmentServiceImpl implements AssessmentService {
         String range = score < 30 ? "情绪状态总体平稳" : "情绪可能存在一定波动";
         String suggestions = "保持规律作息；必要时咨询专业机构";
         AssessmentScale scale = mapper.findById(request.getScaleId()).orElseThrow();
-        String interpretation = aiService.generate(
-                "请根据量表“" + scale.getName() + "”的总分 " + score
-                        + "，给出仅描述情绪倾向的简短解读和自我调节建议。禁止医学诊断。",
-                buildScaleContext(scale.getName()));
         AssessmentResult result = new AssessmentResult();
+        result.setUserId(currentUserProvider.getUserId());
         result.setUser(userMapper.findById(currentUserProvider.getUserId()).orElseThrow());
         result.setScale(scale);
         result.setTotalScore(score);
         result.setStandardScore(maxScore == 0 ? 0D : score * 100D / maxScore);
         result.setRangeDescription(range + "，结果仅供参考，不构成诊断");
-        result.setSuggestions(interpretation == null || interpretation.isBlank()
-                ? suggestions
-                : interpretation);
+        result.setSuggestions(suggestions);
         resultMapper.insert(result);
 
         return Map.of(
+                "resultId", result.getId(),
                 "totalScore", score,
                 "standardScore", result.getStandardScore(),
                 "rangeDescription", range + "，结果仅供参考，不构成诊断",
                 "suggestions", List.of(
-                        interpretation == null || interpretation.isBlank()
-                                ? suggestions
-                                : interpretation,
+                        suggestions,
                         "如情绪困扰持续或加重，建议咨询专业机构"));
+    }
+
+    @Override
+    public Object analyze(Long resultId) {
+        AssessmentResult result = resultMapper.selectById(resultId);
+        if (result == null || !currentUserProvider.getUserId().equals(result.getUserId())) {
+            throw new IllegalArgumentException("测评结果不存在");
+        }
+
+        AssessmentScale scale = mapper.findById(result.getScaleId()).orElseThrow();
+        String analysis = aiService.generate(
+                "请根据量表“" + scale.getName() + "”的总分 " + result.getTotalScore()
+                        + "，给出温和、简短的情绪倾向解读和适当的安慰建议。禁止医学诊断，"
+                        + "不要夸大风险，不要编造用户经历。",
+                buildScaleContext(scale.getName()));
+        String safeAnalysis = analysis == null || analysis.isBlank()
+                ? "暂时无法生成 AI 分析，请稍后再试。"
+                : analysis;
+        result.setSuggestions(safeAnalysis);
+        resultMapper.updateById(result);
+        return Map.of("analysis", safeAnalysis);
     }
 
     @Override
@@ -231,5 +261,51 @@ public class AssessmentServiceImpl implements AssessmentService {
                 .filter(java.util.Objects::nonNull)
                 .limit(3)
                 .collect(java.util.stream.Collectors.joining("\n\n"));
+    }
+
+    private String normalizeQuestionType(String type) {
+        String normalized = type == null ? "SINGLE" : type.trim().toUpperCase();
+        if (!List.of("SINGLE", "MULTIPLE", "TEXT", "JUDGE").contains(normalized)) {
+            throw new IllegalArgumentException("不支持的题目类型");
+        }
+        return normalized;
+    }
+
+    private void validateQuestionOptions(String type, List<OptionRequest> options) {
+        if ("TEXT".equals(type)) {
+            return;
+        }
+        if (options == null || options.isEmpty()) {
+            throw new IllegalArgumentException("选择题至少需要一个选项");
+        }
+        if ("JUDGE".equals(type) && options.size() != 2) {
+            throw new IllegalArgumentException("判断题必须有两个选项");
+        }
+    }
+
+    private int maxQuestionScore(AssessmentQuestion question) {
+        String type = normalizeQuestionType(question.getType());
+        if ("TEXT".equals(type)) {
+            return 0;
+        }
+        if ("MULTIPLE".equals(type)) {
+            return question.getOptions().stream()
+                    .mapToInt(option -> option.getScore() == null ? 0 : option.getScore())
+                    .filter(scoreValue -> scoreValue > 0)
+                    .sum();
+        }
+        return question.getOptions().stream()
+                .mapToInt(option -> option.getScore() == null ? 0 : option.getScore())
+                .max()
+                .orElse(0);
+    }
+
+    private List<Long> answerOptionIds(
+            AssessmentSubmitRequest.Answer answer,
+            String type) {
+        if ("MULTIPLE".equals(type)) {
+            return answer.getOptionIds() == null ? List.of() : answer.getOptionIds();
+        }
+        return answer.getOptionId() == null ? List.of() : List.of(answer.getOptionId());
     }
 }

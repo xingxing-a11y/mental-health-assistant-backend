@@ -2,7 +2,9 @@ package com.mindharbor.modules.assessment.controller;
 
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.assessment.dto.AssessmentSubmitRequest;
+import com.mindharbor.modules.assessment.dto.AssessmentAnalysisRequest;
 import com.mindharbor.modules.assessment.service.AssessmentService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +39,12 @@ public class AssessmentController {
     public ApiResponse<?> submit(@RequestBody AssessmentSubmitRequest request) {
         log.info("Submit assessment, scaleId={}", request.getScaleId());
         return ApiResponse.ok(service.submit(request));
+    }
+
+    @PostMapping("/analysis")
+    public ApiResponse<?> analyze(@Valid @RequestBody AssessmentAnalysisRequest request) {
+        log.info("Analyze assessment result, resultId={}", request.getResultId());
+        return ApiResponse.ok(service.analyze(request.getResultId()));
     }
 
     @GetMapping

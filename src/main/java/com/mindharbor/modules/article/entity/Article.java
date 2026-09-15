@@ -25,6 +25,8 @@ public class Article {
     private String content;
 
     private Instant updatedAt = Instant.now();
+
+    private String updatedBy;
 }
 
 
