@@ -1,13 +1,10 @@
 package com.mindharbor.modules.assessment.entity;
 
 import com.mindharbor.modules.user.entity.User;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -16,18 +13,20 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@Entity
-@Table(name = "assessment_results")
+@TableName("assessment_results")
 public class AssessmentResult {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    private Long userId;
+
+    @TableField(exist = false)
     private User user;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    private Long scaleId;
+
+    @TableField(exist = false)
     private AssessmentScale scale;
 
     private Integer totalScore;

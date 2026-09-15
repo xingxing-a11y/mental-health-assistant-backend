@@ -1,8 +1,17 @@
 package com.mindharbor.modules.assessment.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.mindharbor.modules.assessment.entity.AssessmentScale;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
+import java.util.List;
+import java.util.Optional;
 
-public interface AssessmentScaleMapper extends JpaRepository<AssessmentScale, Long> {
+@Mapper
+public interface AssessmentScaleMapper extends BaseMapper<AssessmentScale> {
+    @Select("SELECT * FROM assessment_scales")
+    List<AssessmentScale> findAll();
+
+    @Select("SELECT * FROM assessment_scales WHERE id = #{id} LIMIT 1")
+    Optional<AssessmentScale> findById(Long id);
 }
-

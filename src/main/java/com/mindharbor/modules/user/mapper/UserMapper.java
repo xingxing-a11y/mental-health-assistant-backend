@@ -1,18 +1,18 @@
 package com.mindharbor.modules.user.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.mindharbor.modules.user.entity.User;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
 import java.util.Optional;
 
-import com.mindharbor.modules.user.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+@Mapper
+public interface UserMapper extends BaseMapper<User> {
 
-public interface UserMapper extends JpaRepository<User, Long> {
+    @Select("SELECT * FROM users WHERE id = #{id} LIMIT 1")
+    Optional<User> findById(Long id);
 
+    @Select("SELECT * FROM users WHERE username = #{username} LIMIT 1")
     Optional<User> findByUsername(String username);
 
-    Page<User> findAll(Pageable pageable);
 }
-
-
-
-

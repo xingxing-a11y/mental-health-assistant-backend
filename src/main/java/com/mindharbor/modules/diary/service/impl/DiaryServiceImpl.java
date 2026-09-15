@@ -47,15 +47,17 @@ public class DiaryServiceImpl implements DiaryService {
         User user = users.findById(currentUser.getUserId())
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
         Diary diary = new Diary();
+        diary.setUserId(user.getId());
         diary.setUser(user);
         diary.setContent(request.getContent());
         diary.setEmotion(request.getEmotion());
-        return mapper.save(diary);
+        mapper.insert(diary);
+        return diary;
     }
 
     @Override
     public void delete(Long id) {
-        mapper.delete(owned(id));
+        mapper.deleteById(id);
     }
 
     @Override
@@ -88,7 +90,7 @@ public class DiaryServiceImpl implements DiaryService {
     private Diary owned(Long id) {
         Diary diary = mapper.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("日记不存在"));
-        if (!diary.getUser().getId().equals(currentUser.getUserId())) {
+        if (!currentUser.getUserId().equals(diary.getUserId())) {
             throw new SecurityException("无权访问该日记");
         }
         return diary;

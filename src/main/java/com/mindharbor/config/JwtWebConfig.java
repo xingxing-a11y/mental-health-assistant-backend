@@ -48,7 +48,7 @@ public class JwtWebConfig implements WebMvcConfigurer {
                 return true;
             }
 
-            private String extractToken(HttpServletRequest request) {
+            private String  extractToken(HttpServletRequest request) {
                 Cookie[] cookies = request.getCookies();
                 if (cookies != null) {
                     for (Cookie cookie : cookies) {

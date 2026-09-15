@@ -1,6 +1,9 @@
 package com.mindharbor.modules.chat.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,31 +12,23 @@ import java.time.Instant;
 @Getter
 @Setter
 @NoArgsConstructor
-@Entity
-@Table(name = "chat_messages")
+@TableName("chat_messages")
 public class ChatMessage {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @ManyToOne(optional = false)
+    private Long sessionId;
 
+    @TableField(exist = false)
     private ChatSession session;
 
-    @Enumerated(EnumType.STRING)
-
     private Role role;
-
-    @Lob
-    @Column(nullable = false, columnDefinition = "longtext")
 
     private String content;
 
     private Instant createdAt = Instant.now();
 
-    @Column(nullable = false)
     private boolean favorite;
 
     public enum Role {

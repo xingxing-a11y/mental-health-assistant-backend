@@ -39,12 +39,22 @@ public class ChatController {
         return ApiResponse.ok(service.create(request));
     }
 
+    /**
+     * 查询会话历史
+     * @param sessionId
+     * @return
+     */
     @GetMapping("/{sessionId}/messages")
     public ApiResponse<?> history(@PathVariable long sessionId) {
         log.info("Get chat history, sessionId={}", sessionId);
         return ApiResponse.ok(service.history(sessionId));
     }
 
+    /**
+     * 删除会话
+     * @param sessionId
+     * @return
+     */
     @DeleteMapping("/{sessionId}")
     public ApiResponse<?> delete(@PathVariable long sessionId) {
         log.info("Delete chat session, sessionId={}", sessionId);
@@ -52,6 +62,19 @@ public class ChatController {
         return ApiResponse.ok(null);
     }
 
+    @PutMapping("/{sessionId}/name")
+    public ApiResponse<?> rename(
+            @PathVariable long sessionId,
+            @Valid @RequestBody CreateSessionRequest request) {
+        return ApiResponse.ok(service.rename(sessionId, request));
+    }
+
+    /**
+     * SSE 流式发送 AI 消息
+     * @param sessionId
+     * @param request
+     * @return
+     */
     @PostMapping(value = "/{sessionId}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     /** 使用 POST 传递问题，避免原生 EventSource 无法携带请求体和 Bearer Header。 */
 

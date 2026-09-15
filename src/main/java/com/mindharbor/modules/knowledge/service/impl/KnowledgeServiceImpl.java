@@ -4,8 +4,8 @@ import com.mindharbor.modules.knowledge.dto.KnowledgeDocumentRequest;
 import com.mindharbor.modules.knowledge.entity.KnowledgeDocument;
 import com.mindharbor.modules.knowledge.mapper.KnowledgeDocumentMapper;
 import com.mindharbor.modules.knowledge.service.KnowledgeService;
-import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Lazy;
 import java.util.List;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -24,7 +24,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     public KnowledgeServiceImpl(
             KnowledgeDocumentMapper mapper,
-            VectorStore vectorStore,
+            @Lazy VectorStore vectorStore,
             @Value("${rag.chunk-size:1000}") int chunkSize,
             @Value("${rag.chunk-overlap:100}") int chunkOverlap) {
         this.mapper = mapper;
@@ -43,18 +43,21 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setTitle(request.getTitle());
         document.setContent(request.getContent());
-        return mapper.save(document);
+        mapper.insert(document);
+        return document;
     }
 
     @Override
     public KnowledgeDocument update(Long id, KnowledgeDocumentRequest request) {
-        KnowledgeDocument document = mapper.findById(id).orElseThrow();
+        KnowledgeDocument document = mapper.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("知识库文档不存在"));
         deleteVectors(document.getId());
         document.setTitle(request.getTitle());
         document.setContent(request.getContent());
         document.setVectorStatus(KnowledgeDocument.VectorStatus.NOT_VECTORIZED);
         document.touch();
-        return mapper.save(document);
+        mapper.updateById(document);
+        return document;
     }
 
     @Override
@@ -67,17 +70,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public KnowledgeDocument vectorize(Long id, boolean rebuild) {
         KnowledgeDocument document = mapper.findById(id).orElseThrow();
         document.setVectorStatus(KnowledgeDocument.VectorStatus.PROCESSING);
-        mapper.save(document);
+        mapper.updateById(document);
         try {
             deleteVectors(document.getId());
             vectorStore.add(splitDocument(document));
             document.setVectorStatus(KnowledgeDocument.VectorStatus.VECTORIZED);
         } catch (RuntimeException exception) {
             document.setVectorStatus(KnowledgeDocument.VectorStatus.FAILED);
-            mapper.save(document);
+            mapper.updateById(document);
             throw new IllegalStateException("知识库向量化失败", exception);
         }
-        return mapper.save(document);
+        mapper.updateById(document);
+        return document;
     }
 
     private void deleteVectors(Long documentId) {

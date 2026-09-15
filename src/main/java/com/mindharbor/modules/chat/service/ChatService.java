@@ -23,6 +23,8 @@ public interface ChatService {
 
     void updateSettings(long sessionId, ChatSettingsRequest request);
 
+    ChatSessionVO rename(long sessionId, CreateSessionRequest request);
+
     void favoriteMessage(long messageId, boolean favorite);
 
     List<?> favoriteMessages();

@@ -5,15 +5,17 @@ server:
 spring:
   application:
     name: mental-health-assistant
+  # 延迟创建 Spring AI、Chroma 等外部服务 Bean，避免应用启动时建立向量库连接。
+  main:
+    lazy-initialization: true
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/mindharbor?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:validate}
-    open-in-view: false
+  mvc:
+    problemdetails:
+      enabled: true
   ai:
     retry:
       # 对话失败时不重复等待，避免一次请求叠加多轮重试延迟。
@@ -42,7 +44,11 @@ logging:
   level:
     root: INFO
     com.mindharbor: INFO
-    org.hibernate.SQL: WARN
+    com.baomidou.mybatisplus: INFO
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
 security:
   cookie:
     secure: ${COOKIE_SECURE:false}

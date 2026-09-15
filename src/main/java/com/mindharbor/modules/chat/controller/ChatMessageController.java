@@ -15,6 +15,12 @@ public class ChatMessageController {
         this.service = service;
     }
 
+    /**
+     * 收藏ai消息
+     * @param messageId
+     * @param request
+     * @return
+     */
     @PutMapping("/{messageId}/favorite")
     public ApiResponse<?> favorite(
             @PathVariable long messageId,
@@ -23,6 +29,10 @@ public class ChatMessageController {
         return ApiResponse.ok(null);
     }
 
+    /**
+     * 查询收藏消息
+     * @return
+     */
     @GetMapping("/favorites")
     public ApiResponse<?> favorites() {
         return ApiResponse.ok(service.favoriteMessages());

@@ -1,6 +1,8 @@
 package com.mindharbor.modules.user.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,20 +11,13 @@ import java.time.Instant;
 @Getter
 @Setter
 @NoArgsConstructor
-@Entity
-@Table(name = "users", uniqueConstraints = @UniqueConstraint(columnNames = "username"))
+@TableName("users")
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @Column(nullable = false)
-
     private String username;
-
-    @Column(nullable = false)
 
     private String passwordHash;
 
@@ -32,11 +27,7 @@ public class User {
 
     private Integer age;
 
-    @Enumerated(EnumType.STRING)
-
     private Role role = Role.USER;
-
-    @Enumerated(EnumType.STRING)
 
     private Status status = Status.ACTIVE;
 

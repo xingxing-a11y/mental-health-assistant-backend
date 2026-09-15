@@ -18,7 +18,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     public List<Article> list() {
-        return mapper.findAll();
+        return mapper.selectList(null);
     }
 
     @Override
@@ -44,7 +44,8 @@ public class ArticleServiceImpl implements ArticleService {
     public Article create(ArticleRequest request) {
         Article article = new Article();
         apply(article, request);
-        return mapper.save(article);
+        mapper.insert(article);
+        return article;
     }
 
     @Override
@@ -52,7 +53,8 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = mapper.findById(id).orElseThrow();
         apply(article, request);
         article.setUpdatedAt(java.time.Instant.now());
-        return mapper.save(article);
+        mapper.updateById(article);
+        return article;
     }
 
     @Override

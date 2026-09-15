@@ -29,9 +29,10 @@ public class AdminUserController {
     @GetMapping
     public ApiResponse<?> list(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String nickname) {
         log.info("List users for administrator");
-        return ApiResponse.ok(service.listUsers(page, size));
+        return ApiResponse.ok(service.listUsers(page, size, nickname));
     }
 
     @PutMapping("/{userId}/status")

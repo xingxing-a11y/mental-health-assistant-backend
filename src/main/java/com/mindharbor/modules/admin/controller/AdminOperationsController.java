@@ -33,11 +33,11 @@ public class AdminOperationsController {
 
     @GetMapping("/audits/high-risk")
     public ApiResponse<?> highRisk() {
-        return ApiResponse.ok(sessions.findAll().stream()
+        return ApiResponse.ok(sessions.selectList(null).stream()
                 .filter(ChatSession::isHighRisk)
                 .map(session -> Map.of(
                         "sessionId", session.getId(),
-                        "userId", session.getUser().getId(),
+                        "userId", session.getUserId(),
                         "createdAt", session.getLatestMessageAt(),
                         "summary", "该会话已触发高风险干预"))
                 .toList());
@@ -46,9 +46,9 @@ public class AdminOperationsController {
     @GetMapping("/statistics/overview")
     public ApiResponse<?> statistics() {
         return ApiResponse.ok(Map.of(
-                "registeredUsers", users.count(),
-                "assessmentCompletions", results.count(),
-                "chatSessions", sessions.count()));
+                "registeredUsers", users.selectCount(null),
+                "assessmentCompletions", results.selectCount(null),
+                "chatSessions", sessions.selectCount(null)));
     }
 
     @GetMapping("/announcements")
@@ -61,7 +61,8 @@ public class AdminOperationsController {
         Announcement announcement = new Announcement();
         announcement.setTitle(request.getTitle());
         announcement.setContent(request.getContent());
-        return ApiResponse.ok(announcements.save(announcement));
+        announcements.insert(announcement);
+        return ApiResponse.ok(announcement);
     }
 
     @PutMapping("/announcements/{id}")
@@ -72,7 +73,8 @@ public class AdminOperationsController {
                 .orElseThrow(() -> new IllegalArgumentException("公告不存在"));
         announcement.setTitle(request.getTitle());
         announcement.setContent(request.getContent());
-        return ApiResponse.ok(announcements.save(announcement));
+        announcements.updateById(announcement);
+        return ApiResponse.ok(announcement);
     }
 
     @DeleteMapping("/announcements/{id}")

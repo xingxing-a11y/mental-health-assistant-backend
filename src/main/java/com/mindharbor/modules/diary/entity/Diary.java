@@ -1,7 +1,10 @@
 package com.mindharbor.modules.diary.entity;
 
 import com.mindharbor.modules.user.entity.User;
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -10,25 +13,20 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@Entity
-@Table(name = "diaries")
+@TableName("diaries")
 public class Diary {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    private Long userId;
+
+    @TableField(exist = false)
     private User user;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "longtext")
     private String content;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Emotion emotion;
 
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
     public enum Emotion {

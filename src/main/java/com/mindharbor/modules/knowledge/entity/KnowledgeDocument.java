@@ -1,6 +1,8 @@
 package com.mindharbor.modules.knowledge.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,25 +11,15 @@ import java.time.Instant;
 @Getter
 @Setter
 @NoArgsConstructor
-@Entity
-@Table(name = "knowledge_documents")
+@TableName("knowledge_documents")
 public class KnowledgeDocument {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(nullable = false)
 
     private String title;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "longtext")
-
     private String content;
-
-    @Enumerated(EnumType.STRING)
 
     private VectorStatus vectorStatus = VectorStatus.NOT_VECTORIZED;
 

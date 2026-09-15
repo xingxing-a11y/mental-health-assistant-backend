@@ -25,6 +25,8 @@ public interface UserService {
 
     PageResult<UserVO> listUsers(int page, int size);
 
+    PageResult<UserVO> listUsers(int page, int size, String nickname);
+
     UserVO updateStatus(Long userId, UserStatusRequest request);
 }
 

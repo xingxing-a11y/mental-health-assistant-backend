@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import com.mindharbor.modules.assessment.mapper.AssessmentScaleMapper;
 import com.mindharbor.modules.assessment.mapper.AssessmentQuestionMapper;
 import com.mindharbor.modules.assessment.mapper.AssessmentResultMapper;
+import com.mindharbor.modules.assessment.mapper.AssessmentOptionMapper;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.modules.assessment.entity.AssessmentResult;
 import com.mindharbor.modules.assessment.service.AssessmentService;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Lazy;
 import com.mindharbor.security.CurrentUserProvider;
 import com.mindharbor.modules.chat.service.AiConversationService;
 import org.springframework.ai.document.Document;
@@ -30,6 +32,7 @@ public class AssessmentServiceImpl implements AssessmentService {
     private final AssessmentScaleMapper mapper;
     private final AssessmentQuestionMapper questionMapper;
     private final AssessmentResultMapper resultMapper;
+    private final AssessmentOptionMapper optionMapper;
     private final UserMapper userMapper;
     private final CurrentUserProvider currentUserProvider;
     private final AiConversationService aiService;
@@ -39,13 +42,15 @@ public class AssessmentServiceImpl implements AssessmentService {
             AssessmentScaleMapper mapper,
             AssessmentQuestionMapper questionMapper,
             AssessmentResultMapper resultMapper,
+            AssessmentOptionMapper optionMapper,
             UserMapper userMapper,
             CurrentUserProvider currentUserProvider,
             AiConversationService aiService,
-            VectorStore vectorStore) {
+            @Lazy VectorStore vectorStore) {
         this.mapper = mapper;
         this.questionMapper = questionMapper;
         this.resultMapper = resultMapper;
+        this.optionMapper = optionMapper;
         this.userMapper = userMapper;
         this.currentUserProvider = currentUserProvider;
         this.aiService = aiService;
@@ -60,12 +65,14 @@ public class AssessmentServiceImpl implements AssessmentService {
     @Override
     public Object detail(Long scaleId) {
         AssessmentScale scale = mapper.findById(scaleId).orElseThrow();
+        List<AssessmentQuestion> questions = questionMapper.findByScaleIdOrderByQuestionOrderAsc(scaleId);
+        questions.forEach(question -> question.setOptions(optionMapper.findByQuestionId(question.getId())));
         return Map.of(
                 "id", scale.getId(),
                 "name", scale.getName(),
                 "description", scale.getDescription(),
                 "applicableScene", scale.getApplicableScene(),
-                "questions", questionMapper.findByScaleIdOrderByQuestionOrderAsc(scaleId));
+                "questions", questions);
     }
 
     @Override
@@ -74,7 +81,8 @@ public class AssessmentServiceImpl implements AssessmentService {
         scale.setName(request.getName());
         scale.setDescription(request.getDescription());
         scale.setApplicableScene(request.getApplicableScene());
-        return mapper.save(scale);
+        mapper.insert(scale);
+        return scale;
     }
 
     @Override
@@ -83,7 +91,8 @@ public class AssessmentServiceImpl implements AssessmentService {
         scale.setName(request.getName());
         scale.setDescription(request.getDescription());
         scale.setApplicableScene(request.getApplicableScene());
-        return mapper.save(scale);
+        mapper.updateById(scale);
+        return scale;
     }
 
     @Override
@@ -97,18 +106,21 @@ public class AssessmentServiceImpl implements AssessmentService {
             List<QuestionRequest> requests) {
         AssessmentScale scale = mapper.findById(scaleId).orElseThrow();
         List<AssessmentQuestion> questions = questionMapper.findByScaleIdOrderByQuestionOrderAsc(scaleId);
-        questionMapper.deleteAll(questions);
+        questions.forEach(question -> {
+            optionMapper.deleteByQuestionId(question.getId());
+            questionMapper.deleteById(question.getId());
+        });
         List<AssessmentQuestion> result = new ArrayList<>();
 
         for (QuestionRequest request : requests) {
             AssessmentQuestion question = new AssessmentQuestion();
+            question.setScaleId(scale.getId());
             question.setScale(scale);
             question.setQuestionOrder(request.getOrder());
             question.setContent(request.getContent());
 
             for (OptionRequest optionRequest : request.getOptions()) {
                 AssessmentOption option = new AssessmentOption();
-                option.setQuestion(question);
                 option.setLabel(optionRequest.getLabel());
                 option.setScore(optionRequest.getScore());
                 question.getOptions().add(option);
@@ -116,7 +128,14 @@ public class AssessmentServiceImpl implements AssessmentService {
             result.add(question);
         }
 
-        return questionMapper.saveAll(result);
+        result.forEach(question -> {
+            questionMapper.insert(question);
+            question.getOptions().forEach(option -> {
+                option.setQuestionId(question.getId());
+                optionMapper.insert(option);
+            });
+        });
+        return result;
     }
 
     @Override
@@ -132,6 +151,7 @@ public class AssessmentServiceImpl implements AssessmentService {
         int maxScore = 0;
         List<AssessmentQuestion> scaleQuestions = questionMapper
                 .findByScaleIdOrderByQuestionOrderAsc(request.getScaleId());
+        scaleQuestions.forEach(question -> question.setOptions(optionMapper.findByQuestionId(question.getId())));
         if (scaleQuestions.isEmpty()) {
             throw new IllegalArgumentException("当前量表暂无题目");
         }
@@ -183,7 +203,7 @@ public class AssessmentServiceImpl implements AssessmentService {
         result.setSuggestions(interpretation == null || interpretation.isBlank()
                 ? suggestions
                 : interpretation);
-        resultMapper.save(result);
+        resultMapper.insert(result);
 
         return Map.of(
                 "totalScore", score,

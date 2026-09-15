@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.4.5</version>
+    <version>3.4.1</version>
   </parent>
 
   <groupId>com.mindharbor</groupId>
@@ -14,8 +14,23 @@
 
   <properties>
     <java.version>17</java.version>
-    <spring-ai.version>1.0.0</spring-ai.version>
+    <spring-ai.version>1.0.0-SNAPSHOT</spring-ai.version>
+    <mybatis-plus.version>3.5.7</mybatis-plus.version>
+    <java-jwt.version>4.4.0</java-jwt.version>
   </properties>
+
+  <repositories>
+    <repository>
+      <id>spring-snapshots</id>
+      <url>https://repo.spring.io/snapshot</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
 
   <dependencyManagement>
     <dependencies>
@@ -43,16 +58,23 @@
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
 
+    <!-- Spring Security：认证基础设施和密码编码。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+
     <!-- Spring Security Crypto：使用 BCrypt 安全存储密码。 -->
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-crypto</artifactId>
     </dependency>
 
-    <!-- JPA：负责 Entity 持久化和 Mapper 数据访问。 -->
+    <!-- MyBatis-Plus：负责实体持久化和 Mapper 数据访问。 -->
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-data-jpa</artifactId>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+      <version>${mybatis-plus.version}</version>
     </dependency>
 
     <!-- MySQL JDBC 驱动：连接业务数据库。 -->
@@ -60,6 +82,34 @@
       <groupId>com.mysql</groupId>
       <artifactId>mysql-connector-j</artifactId>
       <scope>runtime</scope>
+    </dependency>
+
+    <!-- JWT：使用标准库生成和校验令牌。 -->
+    <dependency>
+      <groupId>com.auth0</groupId>
+      <artifactId>java-jwt</artifactId>
+      <version>${java-jwt.version}</version>
+    </dependency>
+
+    <!-- Redis：缓存、会话和限流基础设施。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-redis</artifactId>
+    </dependency>
+
+    <!-- 常用工具、AOP 和邮件能力。 -->
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-all</artifactId>
+      <version>5.8.38</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-mail</artifactId>
     </dependency>
 
     <!-- Lombok：生成 Entity 的 Getter、Setter 和无参构造器。 -->

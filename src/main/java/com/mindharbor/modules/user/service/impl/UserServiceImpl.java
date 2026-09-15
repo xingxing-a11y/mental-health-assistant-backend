@@ -9,13 +9,14 @@ import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.modules.user.service.UserService;
 import com.mindharbor.modules.user.vo.UserVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.time.Instant;
-import org.springframework.data.domain.PageRequest;
 import com.mindharbor.modules.user.vo.PageResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.mindharbor.security.CurrentUserProvider;
+import org.springframework.dao.DuplicateKeyException;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -39,22 +40,31 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserVO register(RegisterRequest request) {
+        String username = request.getUsername() == null
+                ? ""
+                : request.getUsername().trim();
+
         if (request.getPassword() == null
                 || !request.getPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("密码确认不一致");
         }
 
-        if (mapper.findByUsername(request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("用户名已存在");
+        if (mapper.findByUsername(username).isPresent()) {
+            throw new IllegalArgumentException("账号已存在");
         }
 
         User user = new User();
-        user.setUsername(request.getUsername());
+        user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setNickname(request.getNickname());
         user.setGender(request.getGender());
         user.setAge(request.getAge());
-        return toView(mapper.save(user));
+        try {
+            mapper.insert(user);
+        } catch (DuplicateKeyException exception) {
+            throw new IllegalArgumentException("账号已存在");
+        }
+        return toView(user);
     }
 
     @Override
@@ -73,7 +83,7 @@ public class UserServiceImpl implements UserService {
                 user.setFailedLoginAttempts(0);
             }
 
-            mapper.save(user);
+            mapper.updateById(user);
             throw new IllegalArgumentException("用户名或密码错误");
         }
 
@@ -88,7 +98,7 @@ public class UserServiceImpl implements UserService {
 
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
-        mapper.save(user);
+        mapper.updateById(user);
         return toView(user);
     }
 
@@ -105,7 +115,8 @@ public class UserServiceImpl implements UserService {
         user.setNickname(request.getNickname());
         user.setGender(request.getGender());
         user.setAge(request.getAge());
-        return toView(mapper.save(user));
+        mapper.updateById(user);
+        return toView(user);
     }
 
     @Override
@@ -115,7 +126,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("旧密码错误");
         }
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        mapper.save(user);
+        mapper.updateById(user);
     }
 
     private User currentEntity() {
@@ -137,7 +148,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserVO> listUsers() {
-        return mapper.findAll()
+        return mapper.selectList(null)
                 .stream()
                 .map(this::toView)
                 .toList();
@@ -145,21 +156,41 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public PageResult<UserVO> listUsers(int page, int size) {
+        return listUsers(page, size, null);
+    }
+
+    @Override
+    public PageResult<UserVO> listUsers(int page, int size, String nickname) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        var result = mapper.findAll(PageRequest.of(safePage, safeSize));
+        String keyword = nickname == null ? "" : nickname.trim();
+        if (keyword.length() > 100) {
+            keyword = keyword.substring(0, 100);
+        }
+        LambdaQueryWrapper<User> query = new LambdaQueryWrapper<>();
+        if (!keyword.isEmpty()) {
+            query.like(User::getNickname, keyword);
+        }
+        query.orderByDesc(User::getCreatedAt);
+        List<User> users = mapper.selectList(query);
+        int from = Math.min(safePage * safeSize, users.size());
+        int to = Math.min(from + safeSize, users.size());
+        List<User> pageUsers = users.subList(from, to);
+        long total = users.size();
+        long totalPages = (total + safeSize - 1) / safeSize;
         return new PageResult<>(
-                result.getContent().stream().map(this::toView).toList(),
+                pageUsers.stream().map(this::toView).toList(),
                 safePage,
                 safeSize,
-                result.getTotalElements(),
-                result.getTotalPages());
+                total,
+                (int) totalPages);
     }
 
     @Override
     public UserVO updateStatus(Long userId, UserStatusRequest request) {
         User user = mapper.findById(userId).orElseThrow();
         user.setStatus(request.getStatus());
-        return toView(mapper.save(user));
+        mapper.updateById(user);
+        return toView(user);
     }
 }
