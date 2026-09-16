@@ -23,4 +23,8 @@ public class ChatSessionVO {
     private Instant latestMessageAt;
 
     private ChatSession.Mode mode;
+
+    private boolean pinned;
+
+    private boolean archived;
 }

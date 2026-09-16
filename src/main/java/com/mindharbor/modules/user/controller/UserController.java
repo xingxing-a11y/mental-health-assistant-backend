@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseCookie;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 public class UserController {
@@ -86,6 +87,12 @@ public class UserController {
         return ApiResponse.ok(service.updateProfile(request));
     }
 
+    @PostMapping("/users/me/avatar")
+    public ApiResponse<?> updateAvatar(@RequestPart("file") MultipartFile file) {
+        log.info("Update current user avatar");
+        return ApiResponse.ok(service.updateAvatar(file));
+    }
+
     @PutMapping("/users/me/password")
     public ApiResponse<?> updatePassword(@Valid @RequestBody PasswordUpdateRequest request) {
         log.info("Update current user password");
@@ -93,5 +100,4 @@ public class UserController {
         return ApiResponse.ok(null);
     }
 }
-
 

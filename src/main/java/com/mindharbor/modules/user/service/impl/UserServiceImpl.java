@@ -17,6 +17,15 @@ import com.mindharbor.modules.user.vo.PageResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.mindharbor.security.CurrentUserProvider;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Value;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -28,14 +37,17 @@ public class UserServiceImpl implements UserService {
     private final UserMapper mapper;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserProvider currentUserProvider;
+    private final Path avatarUploadDirectory;
 
     public UserServiceImpl(
             UserMapper mapper,
             PasswordEncoder passwordEncoder,
-            CurrentUserProvider currentUserProvider) {
+            CurrentUserProvider currentUserProvider,
+            @Value("${user.avatar-upload-dir:./uploads/avatars}") String avatarUploadDirectory) {
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
         this.currentUserProvider = currentUserProvider;
+        this.avatarUploadDirectory = Paths.get(avatarUploadDirectory).toAbsolutePath().normalize();
     }
 
     @Override
@@ -112,11 +124,71 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserVO updateProfile(ProfileUpdateRequest request) {
         User user = currentEntity();
+        if (request.getGender() != null
+                && !request.getGender().isBlank()
+                && !List.of("男", "女", "不愿透露").contains(request.getGender())) {
+            throw new IllegalArgumentException("性别选项无效");
+        }
         user.setNickname(request.getNickname());
         user.setGender(request.getGender());
         user.setAge(request.getAge());
         mapper.updateById(user);
         return toView(user);
+    }
+
+    @Override
+    public UserVO updateAvatar(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("请选择头像文件");
+        }
+        if (file.getSize() > 2 * 1024 * 1024) {
+            throw new IllegalArgumentException("头像大小不能超过 2MB");
+        }
+        String contentType = file.getContentType() == null
+                ? ""
+                : file.getContentType().toLowerCase(Locale.ROOT);
+        String extension = switch (contentType) {
+            case "image/jpeg" -> ".jpg";
+            case "image/png" -> ".png";
+            case "image/webp" -> ".webp";
+            default -> throw new IllegalArgumentException("仅支持 JPG、PNG 或 WEBP 图片");
+        };
+
+        try {
+            Files.createDirectories(avatarUploadDirectory);
+            String filename = UUID.randomUUID() + extension;
+            Path target = avatarUploadDirectory.resolve(filename).normalize();
+            if (!target.getParent().equals(avatarUploadDirectory)) {
+                throw new IllegalArgumentException("头像文件路径无效");
+            }
+            try (InputStream inputStream = file.getInputStream()) {
+                Files.copy(inputStream, target);
+            }
+
+            User user = currentEntity();
+            String previousUrl = user.getAvatarUrl();
+            user.setAvatarUrl("/uploads/avatars/" + filename);
+            mapper.updateById(user);
+            deletePreviousAvatar(previousUrl);
+            return toView(user);
+        } catch (IOException exception) {
+            throw new IllegalStateException("头像保存失败", exception);
+        }
+    }
+
+    private void deletePreviousAvatar(String avatarUrl) {
+        if (avatarUrl == null || !avatarUrl.startsWith("/uploads/avatars/")) {
+            return;
+        }
+        String filename = avatarUrl.substring("/uploads/avatars/".length());
+        Path previous = avatarUploadDirectory.resolve(filename).normalize();
+        if (previous.getParent().equals(avatarUploadDirectory)) {
+            try {
+                Files.deleteIfExists(previous);
+            } catch (IOException exception) {
+                // 旧头像清理失败不影响新头像使用。
+            }
+        }
     }
 
     @Override
@@ -139,6 +211,7 @@ public class UserServiceImpl implements UserService {
         view.setId(user.getId());
         view.setUsername(user.getUsername());
         view.setNickname(user.getNickname());
+        view.setAvatarUrl(user.getAvatarUrl());
         view.setGender(user.getGender());
         view.setAge(user.getAge());
         view.setRole(user.getRole().name());

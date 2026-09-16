@@ -13,6 +13,8 @@ public interface ChatService {
 
     List<ChatSessionVO> list();
 
+    List<ChatSessionVO> archived();
+
     List<?> history(long sessionId);
 
     void delete(long sessionId);
@@ -24,6 +26,12 @@ public interface ChatService {
     void updateSettings(long sessionId, ChatSettingsRequest request);
 
     ChatSessionVO rename(long sessionId, CreateSessionRequest request);
+
+    ChatSessionVO togglePin(long sessionId);
+
+    ChatSessionVO archive(long sessionId);
+
+    ChatSessionVO unarchive(long sessionId);
 
     void favoriteMessage(long messageId, boolean favorite);
 

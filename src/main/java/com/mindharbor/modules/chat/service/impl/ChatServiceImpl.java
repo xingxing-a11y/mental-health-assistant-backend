@@ -84,6 +84,14 @@ public class ChatServiceImpl implements ChatService {
                 .toList();
     }
 
+    @Override
+    public List<ChatSessionVO> archived() {
+        return sessions.findArchivedByUserIdOrderByLatestMessageAtDesc(currentUser().getId())
+                .stream()
+                .map(this::toView)
+                .toList();
+    }
+
     private ChatSessionVO toView(ChatSession session) {
         ChatSessionVO view = new ChatSessionVO();
         view.setId(session.getId());
@@ -91,6 +99,8 @@ public class ChatServiceImpl implements ChatService {
         view.setPreview(session.getPreview());
         view.setLatestMessageAt(session.getLatestMessageAt());
         view.setMode(session.getMode());
+        view.setPinned(session.isPinned());
+        view.setArchived(session.isArchived());
         return view;
     }
 
@@ -114,7 +124,10 @@ public class ChatServiceImpl implements ChatService {
      */
     @Override
     public void delete(long sessionId) {
-        getOwnedSession(sessionId);
+        ChatSession session = getOwnedSession(sessionId);
+        if (!session.isArchived()) {
+            throw new IllegalArgumentException("请先归档会话后再删除");
+        }
         messages.deleteBySessionId(sessionId);
         sessions.deleteById(sessionId);
     }
@@ -141,6 +154,31 @@ public class ChatServiceImpl implements ChatService {
             throw new IllegalArgumentException("会话名称不能为空");
         }
         session.setName(name.trim());
+        sessions.updateById(session);
+        return toView(session);
+    }
+
+    @Override
+    public ChatSessionVO togglePin(long sessionId) {
+        ChatSession session = getOwnedSession(sessionId);
+        session.setPinned(!session.isPinned());
+        sessions.updateById(session);
+        return toView(session);
+    }
+
+    @Override
+    public ChatSessionVO archive(long sessionId) {
+        ChatSession session = getOwnedSession(sessionId);
+        session.setArchived(true);
+        session.setPinned(false);
+        sessions.updateById(session);
+        return toView(session);
+    }
+
+    @Override
+    public ChatSessionVO unarchive(long sessionId) {
+        ChatSession session = getOwnedSession(sessionId);
+        session.setArchived(false);
         sessions.updateById(session);
         return toView(session);
     }

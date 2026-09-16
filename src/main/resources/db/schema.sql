@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     nickname VARCHAR(255),
+    avatar_url VARCHAR(512),
     gender VARCHAR(32),
     age INT,
     role VARCHAR(32) NOT NULL DEFAULT 'USER',
@@ -31,6 +32,8 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     latest_message_at TIMESTAMP(6),
     context_cleared BOOLEAN NOT NULL DEFAULT FALSE,
     high_risk BOOLEAN NOT NULL DEFAULT FALSE,
+    pinned BOOLEAN NOT NULL DEFAULT FALSE,
+    archived BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     KEY idx_chat_sessions_user_id (user_id),
     CONSTRAINT fk_chat_sessions_user
@@ -65,6 +68,8 @@ CREATE TABLE IF NOT EXISTS assessment_questions (
     question_order INT,
     content VARCHAR(255),
     type VARCHAR(32) NOT NULL DEFAULT 'SINGLE',
+    matrix_rows TEXT,
+    matrix_columns TEXT,
     PRIMARY KEY (id),
     KEY idx_assessment_questions_scale_id (scale_id),
     CONSTRAINT fk_assessment_questions_scale

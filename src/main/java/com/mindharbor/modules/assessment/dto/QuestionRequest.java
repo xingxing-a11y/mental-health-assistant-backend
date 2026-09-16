@@ -23,6 +23,10 @@ public class QuestionRequest {
 
     private String type = "SINGLE";
 
+    private List<String> matrixRows;
+
+    private List<String> matrixColumns;
+
     @Valid
     private List<OptionRequest> options;
 

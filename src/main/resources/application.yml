@@ -8,6 +8,10 @@ spring:
   # 延迟创建 Spring AI、Chroma 等外部服务 Bean，避免应用启动时建立向量库连接。
   main:
     lazy-initialization: true
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/mindharbor?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:}
@@ -58,3 +62,5 @@ security:
 rag:
   chunk-size: ${RAG_CHUNK_SIZE:1000}
   chunk-overlap: ${RAG_CHUNK_OVERLAP:100}
+user:
+  avatar-upload-dir: ${AVATAR_UPLOAD_DIR:./uploads/avatars}

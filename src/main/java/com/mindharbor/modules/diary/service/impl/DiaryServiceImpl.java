@@ -1,21 +1,27 @@
 package com.mindharbor.modules.diary.service.impl;
 
+import com.mindharbor.modules.chat.service.AiConversationService;
 import com.mindharbor.modules.diary.dto.DiaryRequest;
 import com.mindharbor.modules.diary.entity.Diary;
 import com.mindharbor.modules.diary.mapper.DiaryMapper;
 import com.mindharbor.modules.diary.service.DiaryService;
-import com.mindharbor.modules.chat.service.AiConversationService;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
+import com.mindharbor.modules.user.vo.PageResult;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
 public class DiaryServiceImpl implements DiaryService {
+
+    private static final ZoneId APP_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final int MAX_PAGE_SIZE = 50;
+
     private final DiaryMapper mapper;
     private final UserMapper users;
     private final CurrentUserProvider currentUser;
@@ -33,8 +39,26 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
-    public List<?> list() {
-        return mapper.findByUserIdOrderByCreatedAtDesc(currentUser.getUserId());
+    public List<?> listRecent() {
+        return mapper.findRecentByUserId(currentUser.getUserId(), 2);
+    }
+
+    @Override
+    public PageResult<?> listAll(int page, int size, LocalDate startDate, LocalDate endDate) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+
+        LocalDateTime start = startDate == null ? null : startDate.atStartOfDay();
+        LocalDateTime end = endDate == null ? null : endDate.plusDays(1).atStartOfDay();
+        Long userId = currentUser.getUserId();
+
+        long total = mapper.countByUserId(userId, start, end);
+        List<Diary> items = total == 0
+                ? List.of()
+                : mapper.findPageByUserId(userId, (long) safePage * safeSize, safeSize, start, end);
+        int totalPages = (int) ((total + safeSize - 1) / safeSize);
+
+        return new PageResult<>(items, safePage, safeSize, total, totalPages);
     }
 
     @Override
@@ -48,7 +72,6 @@ public class DiaryServiceImpl implements DiaryService {
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
         Diary diary = new Diary();
         diary.setUserId(user.getId());
-        diary.setUser(user);
         diary.setContent(request.getContent());
         diary.setEmotion(request.getEmotion());
         mapper.insert(diary);
@@ -56,8 +79,17 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
+    public Object update(Long id, DiaryRequest request) {
+        Diary diary = owned(id);
+        diary.setContent(request.getContent());
+        diary.setEmotion(request.getEmotion());
+        mapper.updateById(diary);
+        return diary;
+    }
+
+    @Override
     public void delete(Long id) {
-        mapper.deleteById(id);
+        mapper.deleteById(owned(id).getId());
     }
 
     @Override
@@ -71,14 +103,15 @@ public class DiaryServiceImpl implements DiaryService {
 
     @Override
     public List<?> trend(LocalDate startDate, LocalDate endDate) {
-        LocalDate start = startDate == null ? LocalDate.now().minusDays(30) : startDate;
-        LocalDate end = endDate == null ? LocalDate.now() : endDate;
+        LocalDate today = LocalDate.now(APP_ZONE);
+        LocalDate start = startDate == null ? today.minusDays(30) : startDate;
+        LocalDate end = endDate == null ? today : endDate;
         if (start.isAfter(end)) {
             throw new IllegalArgumentException("开始日期不能晚于结束日期");
         }
         return mapper.findByUserIdOrderByCreatedAtDesc(currentUser.getUserId()).stream()
                 .filter(diary -> {
-                    LocalDate date = diary.getCreatedAt().atZone(ZoneOffset.UTC).toLocalDate();
+                    LocalDate date = diary.getCreatedAt().atZone(APP_ZONE).toLocalDate();
                     return !date.isBefore(start) && !date.isAfter(end);
                 })
                 .map(diary -> Map.of(

@@ -9,9 +9,11 @@ import java.util.Optional;
 
 @Mapper
 public interface AssessmentScaleMapper extends BaseMapper<AssessmentScale> {
+
     @Select("SELECT * FROM assessment_scales")
     List<AssessmentScale> findAll();
 
     @Select("SELECT * FROM assessment_scales WHERE id = #{id} LIMIT 1")
     Optional<AssessmentScale> findById(Long id);
+
 }

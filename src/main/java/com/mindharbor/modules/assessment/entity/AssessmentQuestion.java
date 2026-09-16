@@ -32,6 +32,10 @@ public class AssessmentQuestion {
 
     private String type = "SINGLE";
 
+    private String matrixRows;
+
+    private String matrixColumns;
+
     @TableField(exist = false)
     private List<AssessmentOption> options = new ArrayList<>();
 }

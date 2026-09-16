@@ -23,6 +23,8 @@ public class User {
 
     private String nickname;
 
+    private String avatarUrl;
+
     private String gender;
 
     private Integer age;

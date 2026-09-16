@@ -36,6 +36,10 @@ public class ChatSession {
 
     private Mode mode = Mode.COMPANION;
 
+    private boolean pinned;
+
+    private boolean archived;
+
     public enum Mode {
         COMPANION,
         ANALYTICAL

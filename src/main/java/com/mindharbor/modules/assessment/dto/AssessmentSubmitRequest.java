@@ -29,5 +29,9 @@ public class AssessmentSubmitRequest {
         private List<Long> optionIds;
 
         private String textAnswer;
+
+        private String otherAnswer;
+
+        private java.util.Map<String, Long> matrixAnswers;
     }
 }

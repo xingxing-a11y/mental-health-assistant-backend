@@ -8,6 +8,8 @@ import java.util.List;
 
 @Mapper
 public interface AssessmentResultMapper extends BaseMapper<AssessmentResult> {
+
     @Select("SELECT * FROM assessment_results WHERE user_id = #{userId} ORDER BY created_at DESC")
     List<AssessmentResult> findByUserIdOrderByCreatedAtDesc(Long userId);
+
 }

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Lazy;
 import com.mindharbor.security.CurrentUserProvider;
@@ -112,16 +113,21 @@ public class AssessmentServiceImpl implements AssessmentService {
         });
         List<AssessmentQuestion> result = new ArrayList<>();
 
+        //添加题目
         for (QuestionRequest request : requests) {
             AssessmentQuestion question = new AssessmentQuestion();
             question.setScaleId(scale.getId());
             question.setScale(scale);
             question.setQuestionOrder(request.getOrder());
             question.setContent(request.getContent());
+            //获取题目类型
             String type = normalizeQuestionType(request.getType());
             question.setType(type);
+            question.setMatrixRows(joinMatrixValues(request.getMatrixRows()));
+            question.setMatrixColumns(joinMatrixValues(request.getMatrixColumns()));
             validateQuestionOptions(type, request.getOptions());
 
+            //设置题目标签和分值
             for (OptionRequest optionRequest : request.getOptions() == null
                     ? List.<OptionRequest>of()
                     : request.getOptions()) {
@@ -130,9 +136,11 @@ public class AssessmentServiceImpl implements AssessmentService {
                 option.setScore(optionRequest.getScore());
                 question.getOptions().add(option);
             }
+            //添加题目到问卷列表
             result.add(question);
         }
 
+        //遍历列表将题目插入到问卷中
         result.forEach(question -> {
             questionMapper.insert(question);
             question.getOptions().forEach(option -> {
@@ -186,6 +194,10 @@ public class AssessmentServiceImpl implements AssessmentService {
                 }
                 continue;
             }
+            if ("MATRIX".equals(type)) {
+                validateMatrixAnswer(answer, question);
+                continue;
+            }
             List<Long> optionIds = answerOptionIds(answer, type);
             if (optionIds.isEmpty() || optionIds.size() != new HashSet<>(optionIds).size()) {
                 throw new IllegalArgumentException("请完成全部题目后再提交");
@@ -196,6 +208,12 @@ public class AssessmentServiceImpl implements AssessmentService {
                         .findFirst()
                         .orElseThrow(() -> new IllegalArgumentException("选项不存在"));
                 score += option.getScore() == null ? 0 : option.getScore();
+            }
+            if (optionIds.stream().anyMatch(optionId -> question.getOptions().stream()
+                    .anyMatch(option -> option.getId().equals(optionId)
+                            && "其他".equals(option.getLabel())))
+                    && (answer.getOtherAnswer() == null || answer.getOtherAnswer().isBlank())) {
+                throw new IllegalArgumentException("请填写其他选项内容");
             }
         }
         if (answeredQuestionIds.size() != scaleQuestions.size()) {
@@ -265,14 +283,14 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     private String normalizeQuestionType(String type) {
         String normalized = type == null ? "SINGLE" : type.trim().toUpperCase();
-        if (!List.of("SINGLE", "MULTIPLE", "TEXT", "JUDGE").contains(normalized)) {
+        if (!List.of("SINGLE", "MULTIPLE", "TEXT", "JUDGE", "MATRIX").contains(normalized)) {
             throw new IllegalArgumentException("不支持的题目类型");
         }
         return normalized;
     }
 
     private void validateQuestionOptions(String type, List<OptionRequest> options) {
-        if ("TEXT".equals(type)) {
+        if ("TEXT".equals(type) || "MATRIX".equals(type)) {
             return;
         }
         if (options == null || options.isEmpty()) {
@@ -285,7 +303,7 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     private int maxQuestionScore(AssessmentQuestion question) {
         String type = normalizeQuestionType(question.getType());
-        if ("TEXT".equals(type)) {
+        if ("TEXT".equals(type) || "MATRIX".equals(type)) {
             return 0;
         }
         if ("MULTIPLE".equals(type)) {
@@ -307,5 +325,43 @@ public class AssessmentServiceImpl implements AssessmentService {
             return answer.getOptionIds() == null ? List.of() : answer.getOptionIds();
         }
         return answer.getOptionId() == null ? List.of() : List.of(answer.getOptionId());
+    }
+
+    private String joinMatrixValues(List<String> values) {
+        if (values == null) {
+            return null;
+        }
+        return values.stream()
+                .map(value -> value == null ? "" : value.trim())
+                .filter(value -> !value.isEmpty())
+                .limit(30)
+                .collect(Collectors.joining("\n"));
+    }
+
+    private void validateMatrixAnswer(
+            AssessmentSubmitRequest.Answer answer,
+            AssessmentQuestion question) {
+        List<String> rows = splitMatrixValues(question.getMatrixRows());
+        List<String> columns = splitMatrixValues(question.getMatrixColumns());
+        if (rows.isEmpty() || columns.isEmpty()
+                || answer.getMatrixAnswers() == null
+                || answer.getMatrixAnswers().size() != rows.size()
+                || answer.getMatrixAnswers().values().stream().anyMatch(value -> value == null)) {
+            throw new IllegalArgumentException("请完成全部矩阵题目");
+        }
+        Set<Long> optionIds = new HashSet<>(answer.getMatrixAnswers().values());
+        Set<Long> validOptionIds = question.getOptions().stream()
+                .map(AssessmentOption::getId)
+                .collect(Collectors.toSet());
+        if (!validOptionIds.containsAll(optionIds)) {
+            throw new IllegalArgumentException("矩阵题选项无效");
+        }
+    }
+
+    private List<String> splitMatrixValues(String values) {
+        if (values == null || values.isBlank()) {
+            return List.of();
+        }
+        return List.of(values.split("\\n"));
     }
 }

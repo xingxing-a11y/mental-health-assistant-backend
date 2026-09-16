@@ -9,6 +9,7 @@ import java.util.List;
 
 @Mapper
 public interface AssessmentQuestionMapper extends BaseMapper<AssessmentQuestion> {
+
     @Select("SELECT * FROM assessment_questions WHERE scale_id = #{scaleId} ORDER BY question_order ASC")
     List<AssessmentQuestion> findByScaleIdOrderByQuestionOrderAsc(Long scaleId);
 

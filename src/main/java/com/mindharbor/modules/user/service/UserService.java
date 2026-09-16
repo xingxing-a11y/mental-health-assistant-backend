@@ -8,6 +8,7 @@ import com.mindharbor.modules.user.dto.UserStatusRequest;
 import com.mindharbor.modules.user.vo.UserVO;
 import com.mindharbor.modules.user.vo.PageResult;
 import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface UserService {
 
@@ -18,6 +19,8 @@ public interface UserService {
     UserVO current();
 
     UserVO updateProfile(ProfileUpdateRequest request);
+
+    UserVO updateAvatar(MultipartFile file);
 
     void updatePassword(PasswordUpdateRequest request);
 

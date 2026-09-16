@@ -6,19 +6,39 @@ import com.mindharbor.modules.diary.service.DiaryService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.Map;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class DiaryController {
+
     private final DiaryService service;
 
     public DiaryController(DiaryService service) {
         this.service = service;
     }
 
+    @GetMapping("/diaries/recent")
+    public ApiResponse<?> listRecent() {
+        return ApiResponse.ok(service.listRecent());
+    }
+
     @GetMapping("/diaries")
-    public ApiResponse<?> list() {
-        return ApiResponse.ok(service.list());
+    public ApiResponse<?> list(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "startDate", required = false) LocalDate startDate,
+            @RequestParam(name = "endDate", required = false) LocalDate endDate) {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("开始日期不能晚于结束日期");
+        }
+        return ApiResponse.ok(service.listAll(page, size, startDate, endDate));
     }
 
     @PostMapping("/diaries")
@@ -29,6 +49,13 @@ public class DiaryController {
     @GetMapping("/diaries/{id}")
     public ApiResponse<?> get(@PathVariable Long id) {
         return ApiResponse.ok(service.get(id));
+    }
+
+    @PutMapping("/diaries/{id}")
+    public ApiResponse<?> update(
+            @PathVariable Long id,
+            @Valid @RequestBody DiaryRequest request) {
+        return ApiResponse.ok(service.update(id, request));
     }
 
     @DeleteMapping("/diaries/{id}")
@@ -44,8 +71,8 @@ public class DiaryController {
 
     @GetMapping("/emotions/trend")
     public ApiResponse<?> trend(
-            @RequestParam(required = false) LocalDate startDate,
-            @RequestParam(required = false) LocalDate endDate) {
+            @RequestParam(name = "startDate", required = false) LocalDate startDate,
+            @RequestParam(name = "endDate", required = false) LocalDate endDate) {
         return ApiResponse.ok(service.trend(startDate, endDate));
     }
 }

@@ -15,4 +15,5 @@ public interface AssessmentOptionMapper extends BaseMapper<AssessmentOption> {
 
     @Delete("DELETE FROM assessment_options WHERE question_id = #{questionId}")
     int deleteByQuestionId(Long questionId);
+
 }

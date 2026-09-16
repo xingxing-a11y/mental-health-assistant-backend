@@ -12,7 +12,7 @@ public class AiConversationService {
 
     public AiConversationService(ChatClient.Builder builder) {
         this.chatClient = builder
-                .defaultSystem("你的名字叫做小暖，你是心理健康陪伴助手，只提供心理陪伴和科普，不进行医学诊断。遇到轻生或自伤风险时，建议联系家人、心理援助热线或医院。")
+                .defaultSystem("你的名字叫做徐源，你是心理健康陪伴助手，只提供心理陪伴和科普，不进行医学诊断。遇到轻生或自伤风险时，建议联系家人、心理援助热线或医院。")
                 .build();
     }
 

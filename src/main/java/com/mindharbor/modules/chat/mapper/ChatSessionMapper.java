@@ -13,7 +13,10 @@ public interface ChatSessionMapper extends BaseMapper<ChatSession> {
     @Select("SELECT * FROM chat_sessions WHERE id = #{id} LIMIT 1")
     Optional<ChatSession> findById(Long id);
 
-    @Select("SELECT * FROM chat_sessions WHERE user_id = #{userId} ORDER BY latest_message_at DESC")
+    @Select("SELECT * FROM chat_sessions WHERE user_id = #{userId} AND archived = FALSE ORDER BY pinned DESC, latest_message_at DESC")
     List<ChatSession> findByUserIdOrderByLatestMessageAtDesc(Long userId);
+
+    @Select("SELECT * FROM chat_sessions WHERE user_id = #{userId} AND archived = TRUE ORDER BY latest_message_at DESC")
+    List<ChatSession> findArchivedByUserIdOrderByLatestMessageAtDesc(Long userId);
 
 }

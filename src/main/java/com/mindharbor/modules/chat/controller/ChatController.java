@@ -32,6 +32,12 @@ public class ChatController {
         return ApiResponse.ok(service.list());
     }
 
+    @GetMapping("/archived")
+    public ApiResponse<?> archived() {
+        log.info("List archived chat sessions");
+        return ApiResponse.ok(service.archived());
+    }
+
     @PostMapping
 
     public ApiResponse<?> create(@RequestBody(required = false) CreateSessionRequest request) {
@@ -69,6 +75,21 @@ public class ChatController {
         return ApiResponse.ok(service.rename(sessionId, request));
     }
 
+    @PutMapping("/{sessionId}/pin")
+    public ApiResponse<?> togglePin(@PathVariable long sessionId) {
+        return ApiResponse.ok(service.togglePin(sessionId));
+    }
+
+    @PutMapping("/{sessionId}/archive")
+    public ApiResponse<?> archive(@PathVariable long sessionId) {
+        return ApiResponse.ok(service.archive(sessionId));
+    }
+
+    @PutMapping("/{sessionId}/unarchive")
+    public ApiResponse<?> unarchive(@PathVariable long sessionId) {
+        return ApiResponse.ok(service.unarchive(sessionId));
+    }
+
     /**
      * SSE 流式发送 AI 消息
      * @param sessionId
@@ -102,4 +123,3 @@ public class ChatController {
     }
 
 }
-
