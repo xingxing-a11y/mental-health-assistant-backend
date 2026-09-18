@@ -1,43 +1,68 @@
 package com.mindharbor.config;
 
+import com.mindharbor.modules.user.service.UserStatusService;
+import com.mindharbor.security.JwtAuthenticationFilter;
+import com.mindharbor.security.JwtTokenResolver;
 import com.mindharbor.security.JwtTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.Cookie;
+import java.io.IOException;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.HandlerInterceptor;
-import java.io.IOException;
 
+/**
+ * 注册登录限流与 JWT 上下文拦截器。
+ * 接口鉴权策略由 SecurityConfig 裁决，这里负责安全响应头、令牌与账号状态二次校验、当前用户信息。
+ */
 @Configuration
 public class JwtWebConfig implements WebMvcConfigurer {
 
     private final JwtTokenService tokenService;
 
-    public JwtWebConfig(JwtTokenService tokenService) {
+    private final JwtTokenResolver tokenResolver;
+
+    private final UserStatusService userStatusService;
+
+    public JwtWebConfig(
+            JwtTokenService tokenService,
+            JwtTokenResolver tokenResolver,
+            UserStatusService userStatusService) {
         this.tokenService = tokenService;
+        this.tokenResolver = tokenResolver;
+        this.userStatusService = userStatusService;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new LoginRateLimitInterceptor())
                 .addPathPatterns("/auth/login");
+
         registry.addInterceptor(new HandlerInterceptor() {
             @Override
-            public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
+            public boolean preHandle(
+                    HttpServletRequest request,
+                    HttpServletResponse response,
+                    Object handler) throws IOException {
                 response.setHeader("X-Content-Type-Options", "nosniff");
                 response.setHeader("X-Frame-Options", "DENY");
                 response.setHeader("Referrer-Policy", "no-referrer");
                 response.setHeader("Cache-Control", "no-store");
 
-                String token = extractToken(request);
+                String token = tokenResolver.resolve(request);
                 if (token == null || !tokenService.isValid(token)) {
                     writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "未登录或 JWT 无效");
                     return false;
                 }
 
-                request.setAttribute("authenticatedUserId", tokenService.getUserId(token));
+                Long userId = tokenService.getUserId(token);
+                if (!isActiveAccount(request, userId)) {
+                    writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "账号已被禁用，请联系管理员");
+                    return false;
+                }
+
+                request.setAttribute("authenticatedUserId", userId);
 
                 if (request.getRequestURI().contains("/admin/")
                         && !"ADMIN".equals(tokenService.getRole(token))) {
@@ -48,20 +73,19 @@ public class JwtWebConfig implements WebMvcConfigurer {
                 return true;
             }
 
-            private String  extractToken(HttpServletRequest request) {
-                Cookie[] cookies = request.getCookies();
-                if (cookies != null) {
-                    for (Cookie cookie : cookies) {
-                        if ("mh_token".equals(cookie.getName())) {
-                            return cookie.getValue();
-                        }
-                    }
+            /**
+             * 复用安全过滤器写入的账号状态，属性缺失时再查一次，
+             * 保证禁用账号的旧令牌在拦截器侧同样被拦住。
+             */
+            private boolean isActiveAccount(HttpServletRequest request, Long userId) {
+                Object cached = request.getAttribute(JwtAuthenticationFilter.ACTIVE_ACCOUNT_ATTRIBUTE);
+                if (cached instanceof Boolean) {
+                    return (Boolean) cached;
                 }
-                String authorization = request.getHeader("Authorization");
-                if (authorization != null && authorization.startsWith("Bearer ")) {
-                    return authorization.substring(7);
-                }
-                return null;
+
+                boolean active = userStatusService.isActive(userId);
+                request.setAttribute(JwtAuthenticationFilter.ACTIVE_ACCOUNT_ATTRIBUTE, active);
+                return active;
             }
 
             private void writeError(
@@ -71,7 +95,10 @@ public class JwtWebConfig implements WebMvcConfigurer {
                 response.setStatus(status);
                 response.setContentType("application/json;charset=UTF-8");
                 response.getWriter().write(
-                        String.format("{\"code\":%d,\"message\":\"%s\",\"data\":null}", status, message));
+                        String.format(
+                                "{\"code\":%d,\"message\":\"%s\",\"data\":null}",
+                                status,
+                                message));
             }
         }).addPathPatterns(
                 "/users/**",
@@ -79,6 +106,10 @@ public class JwtWebConfig implements WebMvcConfigurer {
                 "/assessments/**",
                 "/diaries/**",
                 "/emotions/**",
+                "/feedbacks/**",
+                "/notifications/**",
+                "/relax/**",
+                "/uploads/**",
                 "/admin/**")
                 .excludePathPatterns(
                         "/auth/**",
@@ -86,6 +117,6 @@ public class JwtWebConfig implements WebMvcConfigurer {
                         "/assessments/scales/*",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
-                        "/doc.html");
+                        "/swagger-ui.html");
     }
 }

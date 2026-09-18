@@ -6,10 +6,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Getter @Setter @NoArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
 public class AnnouncementRequest {
-    @NotBlank @Size(max = 200)
+
+    @NotBlank(message = "公告标题不能为空")
+    @Size(max = 200, message = "公告标题不能超过 200 个字符")
     private String title;
-    @NotBlank @Size(max = 10000)
+
+    @NotBlank(message = "公告内容不能为空")
+    @Size(max = 10000, message = "公告内容不能超过 10000 个字符")
     private String content;
 }

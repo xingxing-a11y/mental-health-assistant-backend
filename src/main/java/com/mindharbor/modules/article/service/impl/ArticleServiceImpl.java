@@ -1,5 +1,8 @@
 package com.mindharbor.modules.article.service.impl;
 
+import com.mindharbor.common.ResourceNotFoundException;
+import com.mindharbor.modules.admin.entity.AdminOperationLog;
+import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.article.entity.Article;
 import com.mindharbor.modules.article.mapper.ArticleMapper;
 import com.mindharbor.modules.article.service.ArticleService;
@@ -16,14 +19,17 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleMapper mapper;
     private final UserMapper userMapper;
     private final CurrentUserProvider currentUserProvider;
+    private final AdminOperationLogService operationLogService;
 
     public ArticleServiceImpl(
             ArticleMapper mapper,
             UserMapper userMapper,
-            CurrentUserProvider currentUserProvider) {
+            CurrentUserProvider currentUserProvider,
+            AdminOperationLogService operationLogService) {
         this.mapper = mapper;
         this.userMapper = userMapper;
         this.currentUserProvider = currentUserProvider;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -42,7 +48,8 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     public Article get(Long id) {
-        return mapper.findById(id).orElseThrow();
+        return mapper.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
     }
 
     @Override
@@ -56,22 +63,34 @@ public class ArticleServiceImpl implements ArticleService {
         apply(article, request);
         article.setUpdatedBy(currentUserName());
         mapper.insert(article);
+        operationLogService.record(
+                AdminOperationLog.Type.ARTICLE,
+                "article",
+                article.getId(),
+                "新增科普文章");
         return article;
     }
 
     @Override
     public Article update(Long id, ArticleRequest request) {
-        Article article = mapper.findById(id).orElseThrow();
+        Article article = mapper.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
         apply(article, request);
         article.setUpdatedAt(java.time.Instant.now());
         article.setUpdatedBy(currentUserName());
         mapper.updateById(article);
+        operationLogService.record(
+                AdminOperationLog.Type.ARTICLE,
+                "article",
+                article.getId(),
+                "编辑科普文章");
         return article;
     }
 
     @Override
     public void delete(Long id) {
         mapper.deleteById(id);
+        operationLogService.record(AdminOperationLog.Type.ARTICLE, "article", id, "删除科普文章");
     }
 
     private void apply(Article article, ArticleRequest request) {

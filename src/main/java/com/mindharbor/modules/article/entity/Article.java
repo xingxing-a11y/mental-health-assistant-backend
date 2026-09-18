@@ -28,5 +28,3 @@ public class Article {
 
     private String updatedBy;
 }
-
-

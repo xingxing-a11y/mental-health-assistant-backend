@@ -1,6 +1,9 @@
 package com.mindharbor.modules.chat.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mindharbor.common.ResourceNotFoundException;
 import com.mindharbor.modules.chat.dto.ChatMessageRequest;
+import com.mindharbor.modules.chat.dto.ChatSettingsRequest;
 import com.mindharbor.modules.chat.dto.CreateSessionRequest;
 import com.mindharbor.modules.chat.entity.ChatMessage;
 import com.mindharbor.modules.chat.entity.ChatSession;
@@ -8,32 +11,55 @@ import com.mindharbor.modules.chat.mapper.ChatMessageMapper;
 import com.mindharbor.modules.chat.mapper.ChatSessionMapper;
 import com.mindharbor.modules.chat.service.AiConversationService;
 import com.mindharbor.modules.chat.service.ChatService;
-import com.mindharbor.modules.chat.dto.ChatSettingsRequest;
+import com.mindharbor.modules.chat.service.SensitiveWordService;
 import com.mindharbor.modules.chat.vo.ChatSessionVO;
+import com.mindharbor.modules.chat.vo.FavoriteMessageVO;
+import com.mindharbor.modules.chat.vo.SensitiveCheckVO;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
+import com.mindharbor.modules.user.vo.PageResult;
+import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
 import java.util.List;
-import org.springframework.stereotype.Service;
-import org.springframework.context.annotation.Lazy;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import com.mindharbor.security.CurrentUserProvider;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import reactor.core.Disposable;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.Disposable;
 
+/** 会话与消息业务实现，包含归属校验、SSE 流式回复和高危内容拦截。 */
 @Service
 public class ChatServiceImpl implements ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatServiceImpl.class);
 
+    private static final String DEFAULT_SESSION_NAME = "新的对话";
+
+    private static final String EMPTY_SESSION_PREVIEW = "还没有消息";
+
+    private static final int HISTORY_CONTEXT_LIMIT = 6;
+
+    private static final int KNOWLEDGE_CONTEXT_LIMIT = 3;
+
+    private static final int PREVIEW_MAX_LENGTH = 255;
+
+    private static final int DEFAULT_PAGE_SIZE = 20;
+
+    private static final int MAX_PAGE_SIZE = 50;
+
+    private static final int MAX_KEYWORD_LENGTH = 50;
+
     private final ChatSessionMapper sessions;
     private final ChatMessageMapper messages;
     private final UserMapper users;
     private final AiConversationService aiService;
+    private final SensitiveWordService sensitiveWordService;
     private final CurrentUserProvider currentUserProvider;
     private final ObjectMapper objectMapper;
     private final VectorStore vectorStore;
@@ -43,6 +69,7 @@ public class ChatServiceImpl implements ChatService {
             ChatMessageMapper messages,
             UserMapper users,
             AiConversationService aiService,
+            SensitiveWordService sensitiveWordService,
             CurrentUserProvider currentUserProvider,
             ObjectMapper objectMapper,
             @Lazy VectorStore vectorStore) {
@@ -50,6 +77,7 @@ public class ChatServiceImpl implements ChatService {
         this.messages = messages;
         this.users = users;
         this.aiService = aiService;
+        this.sensitiveWordService = sensitiveWordService;
         this.currentUserProvider = currentUserProvider;
         this.objectMapper = objectMapper;
         this.vectorStore = vectorStore;
@@ -62,14 +90,14 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public ChatSessionVO create(CreateSessionRequest request) {
-        ChatSession session = new ChatSession();
         User user = currentUser();
+        ChatSession session = new ChatSession();
         session.setUserId(user.getId());
         session.setUser(user);
         session.setName(request == null || request.getName() == null || request.getName().isBlank()
-                ? "新的对话"
+                ? DEFAULT_SESSION_NAME
                 : request.getName());
-        session.setPreview("还没有消息");
+        session.setPreview(EMPTY_SESSION_PREVIEW);
         sessions.insert(session);
         return toView(session);
     }
@@ -79,7 +107,7 @@ public class ChatServiceImpl implements ChatService {
         return sessions.findByUserIdOrderByLatestMessageAtDesc(currentUser().getId())
                 .stream()
                 .filter(session -> session.getPreview() != null
-                        && !"还没有消息".equals(session.getPreview()))
+                        && !EMPTY_SESSION_PREVIEW.equals(session.getPreview()))
                 .map(this::toView)
                 .toList();
     }
@@ -104,24 +132,14 @@ public class ChatServiceImpl implements ChatService {
         return view;
     }
 
-    /**
-     * 查询会话历史
-     * @param sessionId
-     * @return
-     */
+    /** 查询会话历史消息，先校验会话归属再读取消息。 */
     @Override
-    public List<?> history(long sessionId) {
-
-        //查询是否存在会话
+    public List<ChatMessage> history(long sessionId) {
         getOwnedSession(sessionId);
-        //根据会话id查询会话
         return messages.findBySessionIdOrderByCreatedAtAsc(sessionId);
     }
 
-    /**
-     * 删除会话
-     * @param sessionId
-     */
+    /** 删除已归档会话及其全部消息。 */
     @Override
     public void delete(long sessionId) {
         ChatSession session = getOwnedSession(sessionId);
@@ -185,55 +203,96 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public void favoriteMessage(long messageId, boolean favorite) {
-        ChatMessage message = messages.findById(messageId)
-                .orElseThrow(() -> new IllegalArgumentException("消息不存在"));
-        getOwnedSession(message.getSessionId());
-        if (message.getRole() != ChatMessage.Role.ASSISTANT) {
-            throw new IllegalArgumentException("只能收藏 AI 消息");
-        }
+        ChatMessage message = getOwnedAssistantMessage(messageId);
         message.setFavorite(favorite);
         messages.updateById(message);
     }
 
     @Override
-    public List<?> favoriteMessages() {
-        return messages.findBySessionUserIdAndFavoriteTrueOrderByCreatedAtDesc(
-                currentUserProvider.getUserId()).stream()
-                .map(message -> java.util.Map.of(
-                        "id", message.getId(),
-                        "content", message.getContent(),
-                        "sessionId", message.getSessionId(),
-                        "createdAt", message.getCreatedAt()))
-                .toList();
+    public void removeFavorite(long messageId) {
+        ChatMessage message = getOwnedAssistantMessage(messageId);
+        message.setFavorite(false);
+        messages.updateById(message);
     }
 
-    /**
-     * SSE 流式发送 AI 消息
-     * @param id
-     * @param request
-     * @return
-     */
+    @Override
+    public PageResult<FavoriteMessageVO> favoriteMessages(
+            int page,
+            int size,
+            String keyword,
+            Long sessionId) {
+        Long userId = currentUserProvider.getUserId();
+        int safePage = Math.max(page, 0);
+        int safeSize = normalizePageSize(size);
+        String normalizedKeyword = normalizeKeyword(keyword);
+        long total = messages.countFavorites(userId, sessionId, normalizedKeyword);
+        List<FavoriteMessageVO> items = messages
+                .findFavorites(userId, sessionId, normalizedKeyword, safeSize, safePage * safeSize)
+                .stream()
+                .map(message -> new FavoriteMessageVO(
+                        message.getId(),
+                        message.getContent(),
+                        message.getSessionId(),
+                        message.getCreatedAt()))
+                .toList();
+        return new PageResult<>(items, safePage, safeSize, total, totalPages(total, safeSize));
+    }
+
+    private ChatMessage getOwnedAssistantMessage(long messageId) {
+        ChatMessage message = messages.findById(messageId)
+                .orElseThrow(() -> new ResourceNotFoundException("消息不存在"));
+        getOwnedSession(message.getSessionId());
+        if (message.getRole() != ChatMessage.Role.ASSISTANT) {
+            throw new IllegalArgumentException("只能收藏 AI 消息");
+        }
+        return message;
+    }
+
+    private int normalizePageSize(int size) {
+        if (size <= 0) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(size, MAX_PAGE_SIZE);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.length() <= MAX_KEYWORD_LENGTH
+                ? trimmed
+                : trimmed.substring(0, MAX_KEYWORD_LENGTH);
+    }
+
+    private int totalPages(long total, int size) {
+        return (int) ((total + size - 1) / size);
+    }
+
+    /** SSE 流式发送 AI 消息，高危内容直接返回危机提示而不调用模型。 */
     @Override
     public SseEmitter stream(long id, ChatMessageRequest request) {
         SseEmitter emitter = new SseEmitter(120000L);
         String input = request == null ? "" : request.getContent();
-        ChatSession ownedSession = getOwnedSession(id);
+        ChatSession session = getOwnedSession(id);
 
-        ChatSession session = ownedSession;
         ChatMessage userMessage = new ChatMessage();
         userMessage.setSessionId(session.getId());
         userMessage.setSession(session);
         userMessage.setRole(ChatMessage.Role.USER);
         userMessage.setContent(input);
         messages.insert(userMessage);
-        if ("新的对话".equals(session.getName()) && !input.isBlank()) {
+
+        if (DEFAULT_SESSION_NAME.equals(session.getName()) && !input.isBlank()) {
             session.setName(toPreview(input));
             session.setPreview(toPreview(input));
             sessions.updateById(session);
         }
 
-        if (isHighRisk(input)) {
-            sendRiskAndComplete(emitter, session, userMessage);
+        // 预校验接口只做提示，对话主接口必须复用同一套服务端判定
+        SensitiveCheckVO sensitiveCheck = sensitiveWordService.inspectAndAudit(input, session.getId());
+        if (sensitiveCheck.getLevel() == SensitiveCheckVO.Level.HIGH) {
+            sendRiskAndComplete(emitter, session, userMessage, sensitiveCheck);
             return emitter;
         }
 
@@ -251,14 +310,7 @@ public class ChatServiceImpl implements ChatService {
 
         Disposable subscription = aiService.stream(input, context)
                 .subscribe(
-                        chunk -> {
-                            reply.append(chunk);
-                            try {
-                                send(emitter, "message", java.util.Map.of("content", chunk));
-                            } catch (Exception exception) {
-                                emitter.completeWithError(exception);
-                            }
-                        },
+                        chunk -> appendChunk(emitter, reply, chunk),
                         exception -> sendErrorAndComplete(emitter, exception),
                         () -> completeAssistantReply(emitter, session, reply.toString()));
         emitter.onCompletion(subscription::dispose);
@@ -266,19 +318,30 @@ public class ChatServiceImpl implements ChatService {
         return emitter;
     }
 
+    private void appendChunk(SseEmitter emitter, StringBuilder reply, String chunk) {
+        reply.append(chunk);
+        try {
+            send(emitter, "message", Map.of("content", chunk));
+        } catch (Exception exception) {
+            emitter.completeWithError(exception);
+        }
+    }
+
     private void sendRiskAndComplete(
             SseEmitter emitter,
             ChatSession session,
-            ChatMessage userMessage) {
+            ChatMessage userMessage,
+            SensitiveCheckVO sensitiveCheck) {
         try {
             session.setHighRisk(true);
             session.setPreview("已触发危机干预提示");
             session.setLatestMessageAt(Instant.now());
             sessions.updateById(session);
-            send(emitter, "risk", java.util.Map.of(
-                    "level", "HIGH",
-                    "message", "如果你正处于立即危险中，请马上联系家人、拨打当地心理援助热线或前往医院急诊。"));
-            send(emitter, "done", java.util.Map.of("messageId", userMessage.getId()));
+            send(emitter, "risk", Map.of(
+                    "level", sensitiveCheck.getLevel().name(),
+                    "message", sensitiveCheck.getPrompt(),
+                    "hotline", sensitiveCheck.getHotline()));
+            send(emitter, "done", Map.of("messageId", userMessage.getId()));
             emitter.complete();
         } catch (Exception exception) {
             emitter.completeWithError(exception);
@@ -299,7 +362,7 @@ public class ChatServiceImpl implements ChatService {
             session.setPreview(toPreview(reply));
             session.setLatestMessageAt(Instant.now());
             sessions.updateById(session);
-            send(emitter, "done", java.util.Map.of("messageId", assistantMessage.getId()));
+            send(emitter, "done", Map.of("messageId", assistantMessage.getId()));
             emitter.complete();
         } catch (Exception exception) {
             sendErrorAndComplete(emitter, exception);
@@ -309,44 +372,26 @@ public class ChatServiceImpl implements ChatService {
     private void sendErrorAndComplete(SseEmitter emitter, Throwable exception) {
         log.error("AI stream failed", exception);
         try {
-            send(emitter, "error", java.util.Map.of(
+            send(emitter, "error", Map.of(
                     "code", "AI_SERVICE_ERROR",
                     "message", "暂时无法生成回复"));
         } catch (Exception ignored) {
-            // The connection may already be closed by the client.
+            // 客户端可能已经断开连接，忽略二次发送失败。
         } finally {
             emitter.completeWithError(exception);
         }
     }
 
-    /**
-     * 查询会话是否存在
-     * @param sessionId
-     * @return
-     */
     private ChatSession getOwnedSession(long sessionId) {
         ChatSession session = sessions.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("会话不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("会话不存在"));
         if (!currentUser().getId().equals(session.getUserId())) {
             throw new SecurityException("无权访问该会话");
         }
         return session;
     }
 
-    private boolean isHighRisk(String content) {
-        String normalized = content == null ? "" : content.toLowerCase();
-        return normalized.contains("自杀")
-                || normalized.contains("轻生")
-                || normalized.contains("自残")
-                || normalized.contains("不想活");
-    }
-
-    /**
-     * 构建知识上下文
-     * @param query
-     * @param session
-     * @return
-     */
+    /** 组装知识库、对话模式和历史对话上下文。 */
     private String buildKnowledgeContext(String query, ChatSession session) {
         List<Document> documents;
         try {
@@ -355,29 +400,32 @@ public class ChatServiceImpl implements ChatService {
             log.warn("Knowledge retrieval unavailable; continuing without RAG context", exception);
             documents = List.of();
         }
+
         String knowledge = documents == null
                 ? ""
                 : documents.stream()
-                .map(Document::getText)
-                .filter(java.util.Objects::nonNull)
-                .limit(3)
-                .collect(java.util.stream.Collectors.joining("\n\n"));
+                        .map(Document::getText)
+                        .filter(Objects::nonNull)
+                        .limit(KNOWLEDGE_CONTEXT_LIMIT)
+                        .collect(Collectors.joining("\n\n"));
 
         List<ChatMessage> historyMessages = session.isContextCleared()
                 ? List.of()
                 : messages.findBySessionIdOrderByCreatedAtAsc(session.getId());
         String history = historyMessages
-                        .stream()
-                        .skip(Math.max(0, historyMessages.size() - 6))
-                        .map(message -> message.getRole() + ": " + message.getContent())
-                        .collect(java.util.stream.Collectors.joining("\n"));
+                .stream()
+                .skip(Math.max(0, historyMessages.size() - HISTORY_CONTEXT_LIMIT))
+                .map(message -> message.getRole() + ": " + message.getContent())
+                .collect(Collectors.joining("\n"));
+
+        String modePrompt = session.getMode() == ChatSession.Mode.ANALYTICAL
+                ? "理性分析：结构化梳理问题，给出清晰可执行的建议"
+                : "温柔陪伴：使用温和、共情的表达，优先倾听和支持";
 
         return "知识库参考：\n"
                 + (knowledge.isBlank() ? "暂无可用知识库内容" : knowledge)
                 + "\n\n对话模式：\n"
-                + (session.getMode() == ChatSession.Mode.ANALYTICAL
-                ? "理性分析：结构化梳理问题，给出清晰可执行的建议"
-                : "温柔陪伴：使用温和、共情的表达，优先倾听和支持")
+                + modePrompt
                 + "\n\n历史对话：\n"
                 + (history.isBlank() ? "无" : history);
     }
@@ -392,8 +440,8 @@ public class ChatServiceImpl implements ChatService {
         if (content == null || content.isBlank()) {
             return "暂无消息";
         }
-        return content.length() <= 255
+        return content.length() <= PREVIEW_MAX_LENGTH
                 ? content
-                : content.substring(0, 255);
+                : content.substring(0, PREVIEW_MAX_LENGTH);
     }
 }

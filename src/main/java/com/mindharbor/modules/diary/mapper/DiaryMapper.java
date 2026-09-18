@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+/** 情绪日记数据访问层，只声明查询语句，不承载业务判断。 */
 @Mapper
 public interface DiaryMapper extends BaseMapper<Diary> {
 
@@ -22,8 +23,11 @@ public interface DiaryMapper extends BaseMapper<Diary> {
     @Select("SELECT * FROM diaries WHERE user_id = #{userId} ORDER BY created_at DESC")
     List<Diary> findByUserIdOrderByCreatedAtDesc(Long userId);
 
-    @Select("SELECT * FROM diaries WHERE user_id = #{userId} ORDER BY created_at DESC LIMIT #{limit}")
-    List<Diary> findRecentByUserId(Long userId, int limit);
+    @Select("SELECT * FROM diaries WHERE user_id = #{userId} "
+            + "ORDER BY created_at DESC LIMIT #{limit}")
+    List<Diary> findRecentByUserId(
+            @Param("userId") Long userId,
+            @Param("limit") int limit);
 
     @Select("<script>"
             + "SELECT * FROM diaries WHERE user_id = #{userId}"

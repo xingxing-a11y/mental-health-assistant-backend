@@ -21,6 +21,6 @@ public class AssessmentScale {
     private String description;
 
     private String applicableScene;
+
+    private Boolean published;
 }
-
-

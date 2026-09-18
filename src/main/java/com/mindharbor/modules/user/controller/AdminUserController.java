@@ -3,6 +3,7 @@ package com.mindharbor.modules.user.controller;
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.user.dto.UserStatusRequest;
 import com.mindharbor.modules.user.service.UserService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,10 +11,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-/** 管理员用户管理接口，生产环境需要额外接入 ADMIN 权限拦截器。 */
+/** 管理员用户管理接口，ADMIN 角色由 JWT 拦截器强制校验。 */
 @RestController
 @RequestMapping("/admin/users")
 public class AdminUserController {
@@ -38,7 +39,7 @@ public class AdminUserController {
     @PutMapping("/{userId}/status")
     public ApiResponse<?> updateStatus(
             @PathVariable Long userId,
-            @RequestBody UserStatusRequest request) {
+            @Valid @RequestBody UserStatusRequest request) {
         log.info("Update user status, userId={}", userId);
         return ApiResponse.ok(service.updateStatus(userId, request));
     }

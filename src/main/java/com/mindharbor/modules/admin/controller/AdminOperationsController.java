@@ -2,85 +2,73 @@ package com.mindharbor.modules.admin.controller;
 
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.admin.dto.AnnouncementRequest;
-import com.mindharbor.modules.admin.entity.Announcement;
-import com.mindharbor.modules.admin.mapper.AnnouncementMapper;
-import com.mindharbor.modules.chat.entity.ChatSession;
-import com.mindharbor.modules.chat.mapper.ChatSessionMapper;
-import com.mindharbor.modules.assessment.mapper.AssessmentResultMapper;
-import com.mindharbor.modules.user.mapper.UserMapper;
+import com.mindharbor.modules.admin.service.AdminOperationsService;
+import com.mindharbor.modules.admin.service.AnnouncementService;
 import jakarta.validation.Valid;
-import java.util.Map;
-import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
+/** 管理后台运营接口，只负责参数接收与响应封装，业务逻辑统一放在 service 层。 */
 @RestController
 @RequestMapping("/admin")
 public class AdminOperationsController {
-    private final ChatSessionMapper sessions;
-    private final UserMapper users;
-    private final AssessmentResultMapper results;
-    private final AnnouncementMapper announcements;
+
+    private static final Logger log = LoggerFactory.getLogger(AdminOperationsController.class);
+
+    private final AdminOperationsService adminOperationsService;
+    private final AnnouncementService announcementService;
 
     public AdminOperationsController(
-            ChatSessionMapper sessions,
-            UserMapper users,
-            AssessmentResultMapper results,
-            AnnouncementMapper announcements) {
-        this.sessions = sessions;
-        this.users = users;
-        this.results = results;
-        this.announcements = announcements;
+            AdminOperationsService adminOperationsService,
+            AnnouncementService announcementService) {
+        this.adminOperationsService = adminOperationsService;
+        this.announcementService = announcementService;
     }
 
     @GetMapping("/audits/high-risk")
     public ApiResponse<?> highRisk() {
-        return ApiResponse.ok(sessions.selectList(null).stream()
-                .filter(ChatSession::isHighRisk)
-                .map(session -> Map.of(
-                        "sessionId", session.getId(),
-                        "userId", session.getUserId(),
-                        "createdAt", session.getLatestMessageAt(),
-                        "summary", "该会话已触发高风险干预"))
-                .toList());
+        log.info("List high risk chat session audits");
+        return ApiResponse.ok(adminOperationsService.highRiskAudits());
     }
 
     @GetMapping("/statistics/overview")
     public ApiResponse<?> statistics() {
-        return ApiResponse.ok(Map.of(
-                "registeredUsers", users.selectCount(null),
-                "assessmentCompletions", results.selectCount(null),
-                "chatSessions", sessions.selectCount(null)));
+        log.info("Load administrator statistics overview");
+        return ApiResponse.ok(adminOperationsService.statisticsOverview());
     }
 
     @GetMapping("/announcements")
     public ApiResponse<?> listAnnouncements() {
-        return ApiResponse.ok(announcements.findAllByOrderByCreatedAtDesc());
+        log.info("List announcements for administrator");
+        return ApiResponse.ok(announcementService.list());
     }
 
     @PostMapping("/announcements")
     public ApiResponse<?> createAnnouncement(@Valid @RequestBody AnnouncementRequest request) {
-        Announcement announcement = new Announcement();
-        announcement.setTitle(request.getTitle());
-        announcement.setContent(request.getContent());
-        announcements.insert(announcement);
-        return ApiResponse.ok(announcement);
+        log.info("Create announcement");
+        return ApiResponse.ok(announcementService.create(request));
     }
 
     @PutMapping("/announcements/{id}")
     public ApiResponse<?> updateAnnouncement(
             @PathVariable Long id,
             @Valid @RequestBody AnnouncementRequest request) {
-        Announcement announcement = announcements.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("公告不存在"));
-        announcement.setTitle(request.getTitle());
-        announcement.setContent(request.getContent());
-        announcements.updateById(announcement);
-        return ApiResponse.ok(announcement);
+        log.info("Update announcement, announcementId={}", id);
+        return ApiResponse.ok(announcementService.update(id, request));
     }
 
     @DeleteMapping("/announcements/{id}")
     public ApiResponse<?> deleteAnnouncement(@PathVariable Long id) {
-        announcements.deleteById(id);
+        log.info("Delete announcement, announcementId={}", id);
+        announcementService.delete(id);
         return ApiResponse.ok(null);
     }
-
 }

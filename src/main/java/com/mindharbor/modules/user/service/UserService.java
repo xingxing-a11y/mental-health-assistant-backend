@@ -24,6 +24,9 @@ public interface UserService {
 
     void updatePassword(PasswordUpdateRequest request);
 
+    /** 注销当前账号：只做匿名化，不删除会话、日记与测评记录。 */
+    void deactivate();
+
     List<UserVO> listUsers();
 
     PageResult<UserVO> listUsers(int page, int size);
@@ -32,5 +35,3 @@ public interface UserService {
 
     UserVO updateStatus(Long userId, UserStatusRequest request);
 }
-
-

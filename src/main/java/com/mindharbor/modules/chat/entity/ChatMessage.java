@@ -4,10 +4,11 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -20,6 +21,8 @@ public class ChatMessage {
 
     private Long sessionId;
 
+    /** 关联会话仅用于业务判断，序列化时不输出。 */
+    @JsonIgnore
     @TableField(exist = false)
     private ChatSession session;
 
@@ -36,5 +39,3 @@ public class ChatMessage {
         ASSISTANT
     }
 }
-
-

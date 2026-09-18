@@ -1,5 +1,6 @@
 package com.mindharbor.modules.diary.service.impl;
 
+import com.mindharbor.common.ResourceNotFoundException;
 import com.mindharbor.modules.chat.service.AiConversationService;
 import com.mindharbor.modules.diary.dto.DiaryRequest;
 import com.mindharbor.modules.diary.entity.Diary;
@@ -122,7 +123,7 @@ public class DiaryServiceImpl implements DiaryService {
 
     private Diary owned(Long id) {
         Diary diary = mapper.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("日记不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("日记不存在"));
         if (!currentUser.getUserId().equals(diary.getUserId())) {
             throw new SecurityException("无权访问该日记");
         }

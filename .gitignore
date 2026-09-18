@@ -32,5 +32,7 @@ chroma_data/
 Thumbs.db
 desktop.ini
 
-1
+# User uploads
+uploads/
 
+1

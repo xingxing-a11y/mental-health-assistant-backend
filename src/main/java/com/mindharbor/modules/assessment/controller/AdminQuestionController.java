@@ -2,6 +2,7 @@ package com.mindharbor.modules.assessment.controller;
 
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.assessment.dto.QuestionRequest;
+import com.mindharbor.modules.assessment.entity.AssessmentQuestion;
 import com.mindharbor.modules.assessment.service.AssessmentService;
 import java.util.List;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class AdminQuestionController {
     }
 
     @PutMapping("/{scaleId}/questions")
-    public ApiResponse<?> replace(
+    public ApiResponse<List<AssessmentQuestion>> replace(
             @PathVariable Long scaleId,
             @Valid @Size(max = 200, message = "题目数量不能超过 200 个")
             @RequestBody List<@Valid QuestionRequest> requests) {

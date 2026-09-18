@@ -1,5 +1,8 @@
 package com.mindharbor.modules.user.service.impl;
 
+import com.mindharbor.common.ResourceNotFoundException;
+import com.mindharbor.modules.admin.entity.AdminOperationLog;
+import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.user.dto.LoginRequest;
 import com.mindharbor.modules.user.dto.RegisterRequest;
 import com.mindharbor.modules.user.dto.PasswordUpdateRequest;
@@ -8,6 +11,7 @@ import com.mindharbor.modules.user.dto.UserStatusRequest;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.modules.user.service.UserService;
+import com.mindharbor.modules.user.service.UserSettingsService;
 import com.mindharbor.modules.user.vo.UserVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
@@ -37,16 +41,22 @@ public class UserServiceImpl implements UserService {
     private final UserMapper mapper;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserProvider currentUserProvider;
+    private final UserSettingsService userSettingsService;
+    private final AdminOperationLogService operationLogService;
     private final Path avatarUploadDirectory;
 
     public UserServiceImpl(
             UserMapper mapper,
             PasswordEncoder passwordEncoder,
             CurrentUserProvider currentUserProvider,
+            UserSettingsService userSettingsService,
+            AdminOperationLogService operationLogService,
             @Value("${user.avatar-upload-dir:./uploads/avatars}") String avatarUploadDirectory) {
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
         this.currentUserProvider = currentUserProvider;
+        this.userSettingsService = userSettingsService;
+        this.operationLogService = operationLogService;
         this.avatarUploadDirectory = Paths.get(avatarUploadDirectory).toAbsolutePath().normalize();
     }
 
@@ -99,7 +109,11 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("用户名或密码错误");
         }
 
-        if (user.getStatus() == User.Status.DISABLED) {
+        if (user.getStatus() == User.Status.CLOSED) {
+            throw new IllegalArgumentException("账号已注销，无法登录");
+        }
+
+        if (user.getStatus() != User.Status.ACTIVE) {
             throw new IllegalArgumentException("账号已被禁用");
         }
 
@@ -206,6 +220,16 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
     }
 
+    @Override
+    public void deactivate() {
+        User user = currentEntity();
+        String previousAvatar = user.getAvatarUrl();
+        String anonymizedUsername = "closed_" + user.getId();
+        userSettingsService.disableDataConsent(user.getId());
+        mapper.markDeactivated(user.getId(), anonymizedUsername, Instant.now());
+        deletePreviousAvatar(previousAvatar);
+    }
+
     private UserVO toView(User user) {
         UserVO view = new UserVO();
         view.setId(user.getId());
@@ -261,9 +285,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserVO updateStatus(Long userId, UserStatusRequest request) {
-        User user = mapper.findById(userId).orElseThrow();
+        User user = mapper.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));
         user.setStatus(request.getStatus());
         mapper.updateById(user);
+        operationLogService.record(
+                AdminOperationLog.Type.USER,
+                "user",
+                user.getId(),
+                request.getStatus() == User.Status.DISABLED ? "禁用账号" : "启用账号");
         return toView(user);
     }
 }

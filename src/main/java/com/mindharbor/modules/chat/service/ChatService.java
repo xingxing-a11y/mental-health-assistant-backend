@@ -1,12 +1,16 @@
 package com.mindharbor.modules.chat.service;
 
 import com.mindharbor.modules.chat.dto.ChatMessageRequest;
-import com.mindharbor.modules.chat.dto.CreateSessionRequest;
 import com.mindharbor.modules.chat.dto.ChatSettingsRequest;
+import com.mindharbor.modules.chat.dto.CreateSessionRequest;
+import com.mindharbor.modules.chat.entity.ChatMessage;
 import com.mindharbor.modules.chat.vo.ChatSessionVO;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import com.mindharbor.modules.chat.vo.FavoriteMessageVO;
+import com.mindharbor.modules.user.vo.PageResult;
 import java.util.List;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+/** 会话与消息业务接口。 */
 public interface ChatService {
 
     ChatSessionVO create(CreateSessionRequest request);
@@ -15,7 +19,7 @@ public interface ChatService {
 
     List<ChatSessionVO> archived();
 
-    List<?> history(long sessionId);
+    List<ChatMessage> history(long sessionId);
 
     void delete(long sessionId);
 
@@ -35,7 +39,7 @@ public interface ChatService {
 
     void favoriteMessage(long messageId, boolean favorite);
 
-    List<?> favoriteMessages();
+    void removeFavorite(long messageId);
+
+    PageResult<FavoriteMessageVO> favoriteMessages(int page, int size, String keyword, Long sessionId);
 }
-
-

@@ -23,9 +23,9 @@ public class QuestionRequest {
 
     private String type = "SINGLE";
 
-    private List<String> matrixRows;
+    private String matrixRows;
 
-    private List<String> matrixColumns;
+    private String matrixColumns;
 
     @Valid
     private List<OptionRequest> options;

@@ -17,6 +17,8 @@
     <spring-ai.version>1.0.0-SNAPSHOT</spring-ai.version>
     <mybatis-plus.version>3.5.7</mybatis-plus.version>
     <java-jwt.version>4.4.0</java-jwt.version>
+    <springdoc.version>2.7.0</springdoc.version>
+    <openpdf.version>2.0.3</openpdf.version>
   </properties>
 
   <repositories>
@@ -50,6 +52,20 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- 在线接口调试：提供 OpenAPI 文档和 Swagger UI 页面（/api/v1/swagger-ui/index.html）。 -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
+    </dependency>
+
+    <!-- 会话导出 PDF：OpenPDF 使用 LGPL/MPL 许可，避免 AGPL 依赖；中文字体由配置提供。 -->
+    <dependency>
+      <groupId>com.github.librepdf</groupId>
+      <artifactId>openpdf</artifactId>
+      <version>${openpdf.version}</version>
     </dependency>
 
     <!-- 参数校验：支持请求 DTO 的字段校验。 -->
