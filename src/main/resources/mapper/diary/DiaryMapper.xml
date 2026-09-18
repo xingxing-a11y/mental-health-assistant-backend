@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindharbor.modules.diary.mapper.DiaryMapper">
+
+  <sql id="dateFilter">
+    <if test="start != null">
+      AND created_at &gt;= #{start}
+    </if>
+    <if test="end != null">
+      AND created_at &lt; #{end}
+    </if>
+  </sql>
+
+  <select id="findById" resultType="com.mindharbor.modules.diary.entity.Diary">
+    SELECT *
+    FROM diaries
+    WHERE id = #{id}
+    LIMIT 1
+  </select>
+
+  <select id="findByUserIdOrderByCreatedAtDesc" resultType="com.mindharbor.modules.diary.entity.Diary">
+    SELECT *
+    FROM diaries
+    WHERE user_id = #{userId}
+    ORDER BY created_at DESC
+  </select>
+
+  <select id="findRecentByUserId" resultType="com.mindharbor.modules.diary.entity.Diary">
+    SELECT *
+    FROM diaries
+    WHERE user_id = #{userId}
+    ORDER BY created_at DESC
+    LIMIT #{limit}
+  </select>
+
+  <select id="findPageByUserId" resultType="com.mindharbor.modules.diary.entity.Diary">
+    SELECT *
+    FROM diaries
+    WHERE user_id = #{userId}
+    <include refid="dateFilter"/>
+    ORDER BY created_at DESC
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <select id="countByUserId" resultType="long">
+    SELECT COUNT(*)
+    FROM diaries
+    WHERE user_id = #{userId}
+    <include refid="dateFilter"/>
+  </select>
+
+</mapper>

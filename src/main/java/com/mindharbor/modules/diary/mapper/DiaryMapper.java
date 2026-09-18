@@ -7,33 +7,19 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 
-/** 情绪日记数据访问层，只声明查询语句，不承载业务判断。 */
+/** 情绪日记数据访问层，语句写在 resources/mapper/diary/DiaryMapper.xml。 */
 @Mapper
 public interface DiaryMapper extends BaseMapper<Diary> {
 
-    String DATE_FILTER =
-            "<if test='start != null'> AND created_at &gt;= #{start}</if>"
-                    + "<if test='end != null'> AND created_at &lt; #{end}</if>";
+    Optional<Diary> findById(@Param("id") Long id);
 
-    @Select("SELECT * FROM diaries WHERE id = #{id} LIMIT 1")
-    Optional<Diary> findById(Long id);
+    List<Diary> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 
-    @Select("SELECT * FROM diaries WHERE user_id = #{userId} ORDER BY created_at DESC")
-    List<Diary> findByUserIdOrderByCreatedAtDesc(Long userId);
-
-    @Select("SELECT * FROM diaries WHERE user_id = #{userId} "
-            + "ORDER BY created_at DESC LIMIT #{limit}")
     List<Diary> findRecentByUserId(
             @Param("userId") Long userId,
             @Param("limit") int limit);
 
-    @Select("<script>"
-            + "SELECT * FROM diaries WHERE user_id = #{userId}"
-            + DATE_FILTER
-            + " ORDER BY created_at DESC LIMIT #{size} OFFSET #{offset}"
-            + "</script>")
     List<Diary> findPageByUserId(
             @Param("userId") Long userId,
             @Param("offset") long offset,
@@ -41,10 +27,6 @@ public interface DiaryMapper extends BaseMapper<Diary> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
-    @Select("<script>"
-            + "SELECT COUNT(*) FROM diaries WHERE user_id = #{userId}"
-            + DATE_FILTER
-            + "</script>")
     long countByUserId(
             @Param("userId") Long userId,
             @Param("start") LocalDateTime start,

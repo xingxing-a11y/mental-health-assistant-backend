@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindharbor.modules.feedback.mapper.FeedbackMapper">
+
+  <select id="findPage" resultType="com.mindharbor.modules.feedback.entity.Feedback">
+    SELECT *
+    FROM feedbacks
+    <where>
+      <if test="status != null">
+        AND status = #{status}
+      </if>
+    </where>
+    ORDER BY created_at DESC, id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countPage" resultType="long">
+    SELECT COUNT(*)
+    FROM feedbacks
+    <where>
+      <if test="status != null">
+        AND status = #{status}
+      </if>
+    </where>
+  </select>
+
+</mapper>

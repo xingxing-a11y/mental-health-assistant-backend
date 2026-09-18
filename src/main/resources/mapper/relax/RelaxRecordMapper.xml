@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindharbor.modules.relax.mapper.RelaxRecordMapper">
+
+  <select id="findByUserId" resultType="com.mindharbor.modules.relax.entity.RelaxRecord">
+    SELECT *
+    FROM relax_records
+    WHERE user_id = #{userId}
+    <if test="type != null">
+      AND type = #{type}
+    </if>
+    ORDER BY created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countByUserId" resultType="long">
+    SELECT COUNT(*)
+    FROM relax_records
+    WHERE user_id = #{userId}
+    <if test="type != null">
+      AND type = #{type}
+    </if>
+  </select>
+
+  <select id="countSince" resultType="long">
+    SELECT COUNT(*)
+    FROM relax_records
+    WHERE user_id = #{userId}
+    AND created_at &gt;= #{since}
+  </select>
+
+</mapper>

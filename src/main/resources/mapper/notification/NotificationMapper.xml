@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindharbor.modules.notification.mapper.NotificationMapper">
+
+  <select id="findById" resultType="com.mindharbor.modules.notification.entity.Notification">
+    SELECT *
+    FROM notifications
+    WHERE id = #{id}
+    LIMIT 1
+  </select>
+
+  <!-- 一次 LEFT JOIN 取已读状态，避免整表扇出写入。 -->
+  <select id="findVisible" resultType="com.mindharbor.modules.notification.entity.Notification">
+    SELECT n.*, r.read_at
+    FROM notifications n
+    LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.user_id = #{userId}
+    WHERE (n.scope = 'ALL' OR n.target_user_id = #{userId})
+    AND (n.expire_at IS NULL OR n.expire_at &gt; #{now})
+    ORDER BY n.created_at DESC, n.id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countVisible" resultType="long">
+    SELECT COUNT(*)
+    FROM notifications n
+    WHERE (n.scope = 'ALL' OR n.target_user_id = #{userId})
+    AND (n.expire_at IS NULL OR n.expire_at &gt; #{now})
+  </select>
+
+  <!-- 轻量未读数，供铃铛低频轮询。 -->
+  <select id="countUnread" resultType="long">
+    SELECT COUNT(*)
+    FROM notifications n
+    LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.user_id = #{userId}
+    WHERE (n.scope = 'ALL' OR n.target_user_id = #{userId})
+    AND (n.expire_at IS NULL OR n.expire_at &gt; #{now})
+    AND r.read_at IS NULL
+  </select>
+
+  <select id="findPage" resultType="com.mindharbor.modules.notification.entity.Notification">
+    SELECT *
+    FROM notifications
+    ORDER BY created_at DESC, id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countAll" resultType="long">
+    SELECT COUNT(*)
+    FROM notifications
+  </select>
+
+  <!-- 归档清理按主键批处理，避免一次大事务锁表。 -->
+  <select id="findExpiredIds" resultType="long">
+    SELECT id
+    FROM notifications
+    WHERE expire_at IS NOT NULL
+    AND expire_at &lt;= #{before}
+    ORDER BY id ASC
+    LIMIT #{limit}
+  </select>
+
+  <!-- 已读记录由 notification_reads 的外键级联删除，这里只删主表。 -->
+  <delete id="deleteByIds">
+    DELETE FROM notifications
+    WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </delete>
+
+</mapper>

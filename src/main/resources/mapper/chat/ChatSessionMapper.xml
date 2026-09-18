@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindharbor.modules.chat.mapper.ChatSessionMapper">
+
+  <select id="findById" resultType="com.mindharbor.modules.chat.entity.ChatSession">
+    SELECT *
+    FROM chat_sessions
+    WHERE id = #{id}
+    LIMIT 1
+  </select>
+
+  <select id="findByUserIdOrderByLatestMessageAtDesc" resultType="com.mindharbor.modules.chat.entity.ChatSession">
+    SELECT *
+    FROM chat_sessions
+    WHERE user_id = #{userId}
+    AND archived = FALSE
+    ORDER BY pinned DESC, latest_message_at DESC
+  </select>
+
+  <select id="findArchivedByUserIdOrderByLatestMessageAtDesc" resultType="com.mindharbor.modules.chat.entity.ChatSession">
+    SELECT *
+    FROM chat_sessions
+    WHERE user_id = #{userId}
+    AND archived = TRUE
+    ORDER BY latest_message_at DESC
+  </select>
+
+  <select id="findByHighRiskTrueOrderByLatestMessageAtDesc" resultType="com.mindharbor.modules.chat.entity.ChatSession">
+    SELECT *
+    FROM chat_sessions
+    WHERE high_risk = TRUE
+    ORDER BY latest_message_at DESC
+  </select>
+
+  <!-- 分批清理已无消息且已过保留期的会话，单次删除带 LIMIT。 -->
+  <delete id="deleteEmptyExpiredBatch">
+    DELETE FROM chat_sessions
+    WHERE user_id = #{userId}
+    AND latest_message_at &lt;= #{before}
+    AND NOT EXISTS (SELECT 1 FROM chat_messages m WHERE m.session_id = chat_sessions.id)
+    LIMIT #{limit}
+  </delete>
+
+</mapper>
