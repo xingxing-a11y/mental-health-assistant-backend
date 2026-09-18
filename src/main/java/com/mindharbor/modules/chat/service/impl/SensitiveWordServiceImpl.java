@@ -2,6 +2,9 @@ package com.mindharbor.modules.chat.service.impl;
 
 import com.mindharbor.modules.chat.entity.SensitiveEvent;
 import com.mindharbor.modules.chat.entity.SensitiveWord;
+import com.mindharbor.common.cache.CacheKeys;
+import com.mindharbor.common.cache.CacheProperties;
+import com.mindharbor.common.cache.CacheService;
 import com.mindharbor.modules.chat.mapper.SensitiveEventMapper;
 import com.mindharbor.modules.chat.mapper.SensitiveWordMapper;
 import com.mindharbor.modules.chat.service.SensitiveWordService;
@@ -9,6 +12,8 @@ import com.mindharbor.modules.chat.vo.SensitiveCheckVO;
 import com.mindharbor.security.CurrentUserProvider;
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.mindharbor.modules.chat.vo.SensitiveWordCacheDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,6 +34,9 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
 
     private static final String HOTLINE = "全国心理援助热线 12356，紧急情况请拨打 120";
 
+    private static final TypeReference<List<SensitiveWordCacheDTO>> ENABLED_CACHE_TYPE =
+            new TypeReference<>() { };
+
     /** 词库为空或不可用时的兜底词表，保证服务端校验不因数据问题失效。 */
     private static final List<SensitiveWord> BUILT_IN_WORDS = buildBuiltInWords();
 
@@ -37,14 +45,20 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
     private final SensitiveEventMapper eventMapper;
 
     private final CurrentUserProvider currentUserProvider;
+    private final CacheService cacheService;
+    private final CacheProperties cacheProperties;
 
     public SensitiveWordServiceImpl(
             SensitiveWordMapper wordMapper,
             SensitiveEventMapper eventMapper,
-            CurrentUserProvider currentUserProvider) {
+            CurrentUserProvider currentUserProvider,
+            CacheService cacheService,
+            CacheProperties cacheProperties) {
         this.wordMapper = wordMapper;
         this.eventMapper = eventMapper;
         this.currentUserProvider = currentUserProvider;
+        this.cacheService = cacheService;
+        this.cacheProperties = cacheProperties;
     }
 
     @Override
@@ -100,14 +114,43 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
     /** 词库读取失败时退回内置词表，避免安全校验被数据问题绕过。 */
     private List<SensitiveWord> loadWords() {
         try {
-            List<SensitiveWord> words = wordMapper.findEnabled();
+            List<SensitiveWord> cached = readEnabledCache();
+            if (cached != null) {
+                return cached;
+            }
+            List<SensitiveWord> words = cacheService.loadWithSingleFlight(
+                    CacheKeys.SENSITIVE_WORD_ENABLED,
+                    this::readEnabledCache,
+                    this::loadEnabledWordsFromDatabase);
             if (words != null && !words.isEmpty()) {
                 return words;
             }
         } catch (RuntimeException exception) {
-            log.error("Sensitive word dictionary unavailable, fallback to built-in words", exception);
+            // 词库异常信息里可能带上敏感词原文，日志只记录异常类型，完整堆栈放到 DEBUG。
+            log.error("Sensitive word dictionary unavailable, fallback to built-in words, error={}",
+                    exception.getClass().getSimpleName());
+            log.debug("Sensitive word dictionary failure detail", exception);
         }
         return BUILT_IN_WORDS;
+    }
+
+    /** 读取启用词库缓存：未命中或缓存的 JSON 已损坏时返回 null，交给单飞回源决定是否查库。 */
+    private List<SensitiveWord> readEnabledCache() {
+        List<SensitiveWordCacheDTO> cached =
+                cacheService.get(CacheKeys.SENSITIVE_WORD_ENABLED, ENABLED_CACHE_TYPE);
+        return cached == null ? null : cached.stream().map(SensitiveWordCacheDTO::toEntity).toList();
+    }
+
+    /** 回源启用词库：空词库不回填缓存，避免把"暂时没有词条"固化成长期结果。 */
+    private List<SensitiveWord> loadEnabledWordsFromDatabase() {
+        List<SensitiveWord> loaded = wordMapper.findEnabled();
+        if (loaded != null && !loaded.isEmpty()) {
+            cacheService.put(CacheKeys.SENSITIVE_WORD_ENABLED,
+                    loaded.stream().map(SensitiveWordCacheDTO::from).toList(),
+                    cacheProperties.sensitiveWord().ttlSeconds(),
+                    cacheProperties.sensitiveWord().jitterSeconds());
+        }
+        return loaded;
     }
 
     /** 审计只落词条编号与级别，绝不写入用户原文。 */

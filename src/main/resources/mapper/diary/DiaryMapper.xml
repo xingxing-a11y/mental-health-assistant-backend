@@ -3,10 +3,12 @@
 <mapper namespace="com.mindharbor.modules.diary.mapper.DiaryMapper">
 
   <sql id="dateFilter">
-    <if test="start != null">
+    <!--suppress XmlUnresolvedReference -->
+      <if test="start != null">
       AND created_at &gt;= #{start}
     </if>
-    <if test="end != null">
+    <!--suppress XmlUnresolvedReference -->
+      <if test="end != null">
       AND created_at &lt; #{end}
     </if>
   </sql>

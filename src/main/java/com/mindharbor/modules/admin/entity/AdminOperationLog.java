@@ -38,6 +38,9 @@ public class AdminOperationLog {
         ARTICLE,
         ANNOUNCEMENT,
         USER,
-        NOTIFICATION
+        NOTIFICATION,
+        SENSITIVE_WORD,
+        FEEDBACK,
+        SYSTEM_SETTING
     }
 }

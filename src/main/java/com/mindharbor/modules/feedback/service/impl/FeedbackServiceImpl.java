@@ -1,6 +1,8 @@
 package com.mindharbor.modules.feedback.service.impl;
 
 import com.mindharbor.common.ResourceNotFoundException;
+import com.mindharbor.modules.admin.entity.AdminOperationLog;
+import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.feedback.dto.FeedbackHandleRequest;
 import com.mindharbor.modules.feedback.dto.FeedbackRequest;
 import com.mindharbor.modules.feedback.entity.Feedback;
@@ -25,9 +27,15 @@ public class FeedbackServiceImpl implements FeedbackService {
 
     private final CurrentUserProvider currentUserProvider;
 
-    public FeedbackServiceImpl(FeedbackMapper mapper, CurrentUserProvider currentUserProvider) {
+    private final AdminOperationLogService operationLogService;
+
+    public FeedbackServiceImpl(
+            FeedbackMapper mapper,
+            CurrentUserProvider currentUserProvider,
+            AdminOperationLogService operationLogService) {
         this.mapper = mapper;
         this.currentUserProvider = currentUserProvider;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -66,6 +74,11 @@ public class FeedbackServiceImpl implements FeedbackService {
         feedback.setRemark(normalizeRemark(request.getRemark()));
         feedback.setUpdatedAt(Instant.now());
         mapper.updateById(feedback);
+        operationLogService.record(
+                AdminOperationLog.Type.FEEDBACK,
+                "feedback",
+                feedback.getId(),
+                "处理反馈工单，状态变更为 " + feedback.getStatus().name());
         return toView(feedback);
     }
 

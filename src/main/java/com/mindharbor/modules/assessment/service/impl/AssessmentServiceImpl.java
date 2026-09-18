@@ -229,6 +229,11 @@ public class AssessmentServiceImpl implements AssessmentService {
                 optionMapper.insert(option);
             });
         });
+        operationLogService.record(
+                AdminOperationLog.Type.SCALE,
+                "assessment_scale_questions",
+                scale.getId(),
+                "替换测评量表题目，共 " + result.size() + " 题");
         return result;
     }
 

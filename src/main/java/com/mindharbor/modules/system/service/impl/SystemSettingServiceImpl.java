@@ -1,6 +1,8 @@
 package com.mindharbor.modules.system.service.impl;
 
 import com.mindharbor.modules.system.dto.KnowledgeSettingsRequest;
+import com.mindharbor.modules.admin.entity.AdminOperationLog;
+import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.system.entity.SystemSetting;
 import com.mindharbor.modules.system.mapper.SystemSettingMapper;
 import com.mindharbor.modules.system.service.SystemSettingService;
@@ -50,15 +52,19 @@ public class SystemSettingServiceImpl implements SystemSettingService {
 
     private final String version;
 
+    private final AdminOperationLogService operationLogService;
+
     public SystemSettingServiceImpl(
             SystemSettingMapper mapper,
             @Value("${rag.chunk-size:1000}") int defaultChunkSize,
             @Value("${rag.chunk-overlap:100}") int defaultChunkOverlap,
-            @Value("${app.version:1.0.0}") String version) {
+            @Value("${app.version:1.0.0}") String version,
+            AdminOperationLogService operationLogService) {
         this.mapper = mapper;
         this.defaultChunkSize = defaultChunkSize;
         this.defaultChunkOverlap = defaultChunkOverlap;
         this.version = version;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -78,6 +84,11 @@ public class SystemSettingServiceImpl implements SystemSettingService {
         }
         save(KEY_CHUNK_SIZE, String.valueOf(chunkSize));
         save(KEY_CHUNK_OVERLAP, String.valueOf(chunkOverlap));
+        operationLogService.record(
+                AdminOperationLog.Type.SYSTEM_SETTING,
+                "knowledge_settings",
+                null,
+                "更新知识库分片参数");
         return new KnowledgeSettingsVO(chunkSize, chunkOverlap);
     }
 
