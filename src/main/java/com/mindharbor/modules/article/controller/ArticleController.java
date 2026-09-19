@@ -29,9 +29,9 @@ public class ArticleController {
         return ApiResponse.ok(service.list(keyword));
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<?> get(@PathVariable Long id) {
-        log.info("Get psychology article, id={}", id);
-        return ApiResponse.ok(service.get(id));
+    @GetMapping("/{articleId}")
+    public ApiResponse<?> get(@PathVariable Long articleId) {
+        log.info("Get psychology article, articleId={}", articleId);
+        return ApiResponse.ok(service.get(articleId));
     }
 }

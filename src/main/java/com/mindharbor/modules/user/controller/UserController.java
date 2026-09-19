@@ -33,19 +33,22 @@ public class UserController {
 
     private static final String TOKEN_COOKIE_PATH = "/api/v1";
 
-    private static final long TOKEN_COOKIE_MAX_AGE_SECONDS = 7200L;
-
     private final UserService service;
     private final JwtTokenService tokenService;
     private final boolean secureCookie;
 
+    /** Cookie 有效期复用令牌过期时间，避免改了一处、另一处仍留旧值。 */
+    private final long tokenCookieMaxAgeSeconds;
+
     public UserController(
             UserService service,
             JwtTokenService tokenService,
-            @Value("${security.cookie.secure:false}") boolean secureCookie) {
+            @Value("${security.cookie.secure:false}") boolean secureCookie,
+            @Value("${security.jwt.expiration-seconds:7200}") long tokenCookieMaxAgeSeconds) {
         this.service = service;
         this.tokenService = tokenService;
         this.secureCookie = secureCookie;
+        this.tokenCookieMaxAgeSeconds = tokenCookieMaxAgeSeconds;
     }
 
     @PostMapping("/auth/register")
@@ -114,7 +117,7 @@ public class UserController {
     }
 
     private void addAuthCookie(HttpServletResponse response, String token) {
-        response.addHeader("Set-Cookie", authCookie(token, TOKEN_COOKIE_MAX_AGE_SECONDS).toString());
+        response.addHeader("Set-Cookie", authCookie(token, tokenCookieMaxAgeSeconds).toString());
     }
 
     private ResponseCookie authCookie(String value, long maxAge) {

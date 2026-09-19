@@ -40,18 +40,18 @@ public class AdminArticleController {
         return ApiResponse.ok(service.create(request));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{articleId}")
     public ApiResponse<?> update(
-            @PathVariable Long id,
+            @PathVariable Long articleId,
             @Valid @RequestBody ArticleRequest request) {
-        log.info("Update psychology article, articleId={}", id);
-        return ApiResponse.ok(service.update(id, request));
+        log.info("Update psychology article, articleId={}", articleId);
+        return ApiResponse.ok(service.update(articleId, request));
     }
 
-    @DeleteMapping("/{id}")
-    public ApiResponse<?> delete(@PathVariable Long id) {
-        log.info("Delete psychology article, articleId={}", id);
-        service.delete(id);
+    @DeleteMapping("/{articleId}")
+    public ApiResponse<?> delete(@PathVariable Long articleId) {
+        log.info("Delete psychology article, articleId={}", articleId);
+        service.delete(articleId);
         return ApiResponse.ok(null);
     }
 }

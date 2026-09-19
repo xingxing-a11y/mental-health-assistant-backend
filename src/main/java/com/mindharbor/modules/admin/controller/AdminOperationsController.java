@@ -57,18 +57,18 @@ public class AdminOperationsController {
         return ApiResponse.ok(announcementService.create(request));
     }
 
-    @PutMapping("/announcements/{id}")
+    @PutMapping("/announcements/{announcementId}")
     public ApiResponse<?> updateAnnouncement(
-            @PathVariable Long id,
+            @PathVariable Long announcementId,
             @Valid @RequestBody AnnouncementRequest request) {
-        log.info("Update announcement, announcementId={}", id);
-        return ApiResponse.ok(announcementService.update(id, request));
+        log.info("Update announcement, announcementId={}", announcementId);
+        return ApiResponse.ok(announcementService.update(announcementId, request));
     }
 
-    @DeleteMapping("/announcements/{id}")
-    public ApiResponse<?> deleteAnnouncement(@PathVariable Long id) {
-        log.info("Delete announcement, announcementId={}", id);
-        announcementService.delete(id);
+    @DeleteMapping("/announcements/{announcementId}")
+    public ApiResponse<?> deleteAnnouncement(@PathVariable Long announcementId) {
+        log.info("Delete announcement, announcementId={}", announcementId);
+        announcementService.delete(announcementId);
         return ApiResponse.ok(null);
     }
 }

@@ -46,27 +46,27 @@ public class DiaryController {
         return ApiResponse.ok(service.create(request));
     }
 
-    @GetMapping("/diaries/{id}")
-    public ApiResponse<?> get(@PathVariable Long id) {
-        return ApiResponse.ok(service.get(id));
+    @GetMapping("/diaries/{diaryId}")
+    public ApiResponse<?> get(@PathVariable Long diaryId) {
+        return ApiResponse.ok(service.get(diaryId));
     }
 
-    @PutMapping("/diaries/{id}")
+    @PutMapping("/diaries/{diaryId}")
     public ApiResponse<?> update(
-            @PathVariable Long id,
+            @PathVariable Long diaryId,
             @Valid @RequestBody DiaryRequest request) {
-        return ApiResponse.ok(service.update(id, request));
+        return ApiResponse.ok(service.update(diaryId, request));
     }
 
-    @DeleteMapping("/diaries/{id}")
-    public ApiResponse<?> delete(@PathVariable Long id) {
-        service.delete(id);
+    @DeleteMapping("/diaries/{diaryId}")
+    public ApiResponse<?> delete(@PathVariable Long diaryId) {
+        service.delete(diaryId);
         return ApiResponse.ok(null);
     }
 
-    @PostMapping("/diaries/{id}/analysis")
-    public ApiResponse<?> analyze(@PathVariable Long id) {
-        return ApiResponse.ok(Map.of("analysis", service.analyze(id)));
+    @PostMapping("/diaries/{diaryId}/analysis")
+    public ApiResponse<?> analyze(@PathVariable Long diaryId) {
+        return ApiResponse.ok(Map.of("analysis", service.analyze(diaryId)));
     }
 
     @GetMapping("/emotions/trend")

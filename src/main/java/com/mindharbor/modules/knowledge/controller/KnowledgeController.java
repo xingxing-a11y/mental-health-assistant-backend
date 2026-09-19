@@ -40,30 +40,30 @@ public class KnowledgeController {
         return ApiResponse.ok(service.create(request));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{documentId}")
     public ApiResponse<?> update(
-            @PathVariable Long id,
+            @PathVariable Long documentId,
             @Valid @RequestBody KnowledgeDocumentRequest request) {
-        log.info("Update knowledge document, documentId={}", id);
-        return ApiResponse.ok(service.update(id, request));
+        log.info("Update knowledge document, documentId={}", documentId);
+        return ApiResponse.ok(service.update(documentId, request));
     }
 
-    @DeleteMapping("/{id}")
-    public ApiResponse<?> delete(@PathVariable Long id) {
-        log.info("Delete knowledge document, documentId={}", id);
-        service.delete(id);
+    @DeleteMapping("/{documentId}")
+    public ApiResponse<?> delete(@PathVariable Long documentId) {
+        log.info("Delete knowledge document, documentId={}", documentId);
+        service.delete(documentId);
         return ApiResponse.ok(null);
     }
 
-    @PostMapping("/{id}/vectorize")
-    public ApiResponse<?> vectorize(@PathVariable Long id) {
-        log.info("Vectorize knowledge document, documentId={}", id);
-        return ApiResponse.ok(service.vectorize(id, false));
+    @PostMapping("/{documentId}/vectorize")
+    public ApiResponse<?> vectorize(@PathVariable Long documentId) {
+        log.info("Vectorize knowledge document, documentId={}", documentId);
+        return ApiResponse.ok(service.vectorize(documentId, false));
     }
 
-    @PostMapping("/{id}/re-vectorize")
-    public ApiResponse<?> rebuild(@PathVariable Long id) {
-        log.info("Re-vectorize knowledge document, documentId={}", id);
-        return ApiResponse.ok(service.vectorize(id, true));
+    @PostMapping("/{documentId}/re-vectorize")
+    public ApiResponse<?> rebuild(@PathVariable Long documentId) {
+        log.info("Re-vectorize knowledge document, documentId={}", documentId);
+        return ApiResponse.ok(service.vectorize(documentId, true));
     }
 }

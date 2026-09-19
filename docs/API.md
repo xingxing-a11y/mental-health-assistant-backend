@@ -273,7 +273,7 @@
 - 文章详情查询不到数据时写入短 TTL 空缓存，防止不存在 ID 持续穿透数据库；文章新增时会尝试删除对应空缓存，Key 不存在属于正常情况。
 - Redis 命中但 JSON 反序列化失败时先删除损坏 Key，再回源 MySQL；Redis 故障时回退 MySQL。
 - 写入操作只在 MySQL 事务提交成功后的 `afterCommit` 回调中删除相关缓存；删除失败最多同步重试一次，最终依靠 TTL 恢复。
-- 只有公开读取路径读写缓存（`GET /articles`、`GET /articles/{id}`、`GET /announcements`）；管理端科普文章列表 `GET /admin/articles` 直接查询数据库，保证管理员始终看到最新数据。
+- 只有公开读取路径读写缓存（`GET /articles`、`GET /articles/{articleId}`、`GET /announcements`）；管理端科普文章列表 `GET /admin/articles` 直接查询数据库，保证管理员始终看到最新数据。
 - 缓存是写后删除而不是写后更新：编辑数据只会让对应键消失，要等下一次公开读取才重新回填，因此刚改完时在 Redis 中看不到该键属于正常现象。
 - 缓存键与 TTL、单飞锁与多实例迁移要求见本文档「部署与配置」章节。
 
@@ -347,7 +347,7 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 - MySQL 保存用户、会话、消息、量表、测评、文章和知识库数据。
 - Spring AI 使用正式版依赖，但项目不预设具体 AI 模型。模型地址、API Key 和模型名称由开发者自行配置：`AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL`。`AI_MODEL` 为空时不会强制选择 `gpt-4o-mini`。可通过 `AI_MAX_TOKENS`（默认 512）和 `AI_RETRY_MAX_ATTEMPTS`（默认 1）降低响应延迟。
 - 密码使用 BCrypt 存储，不得记录密码、JWT、完整提问或完整 AI 回复。
-- 登录和注册返回 HS256 JWT，密钥通过 `JWT_SECRET` 配置，必须使用至少 32 字节的随机值；过期时间通过 `JWT_EXPIRATION_SECONDS` 配置，生产环境不得使用开发占位密钥。
+- 登录和注册返回 HS256 JWT，密钥通过 `JWT_SECRET` 配置，必须使用至少 32 字节的随机值；过期时间通过 `JWT_EXPIRATION_SECONDS` 配置，生产环境不得使用开发占位密钥。登录 Cookie 的 `Max-Age` 复用同一配置，不再单独维护常量，避免改了一处、另一处仍留旧值。
 - 登录连续失败 5 次后账号锁定 15 分钟；成功登录会清零失败次数。锁定期间接口返回业务错误，前端应提示用户稍后重试。
 - DTO、VO 只声明数据字段，使用 Lombok，不使用 Java `record`，不写 `from` 或业务方法。
 - Entity 使用 Lombok 生成访问器，业务逻辑放在 Service。
@@ -405,6 +405,7 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 | `AI_BASE_URL`、`AI_API_KEY` | 空 | 模型服务地址与密钥 |
 | `AI_MODEL`、`AI_EMBEDDING_MODEL` | 空 | 对话模型与向量模型名称 |
 | `JWT_SECRET` | 空 | 至少 32 字节随机值，缺失或过短时启动直接失败 |
+| `JWT_EXPIRATION_SECONDS` | `7200` | 令牌有效期（秒）；登录 Cookie 的 `Max-Age` 复用该值 |
 | `COOKIE_SECURE` | `false` | 站点走 HTTPS 时设为 `true` |
 | `AVATAR_UPLOAD_DIR` | `./uploads/avatars` | 头像保存目录，需对进程可写 |
 | `EXPORT_PDF_FONT_PATH` | 空 | 会话导出使用的中文字体绝对路径 |
