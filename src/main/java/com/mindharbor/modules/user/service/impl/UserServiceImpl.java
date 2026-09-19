@@ -1,6 +1,10 @@
 package com.mindharbor.modules.user.service.impl;
 
+import com.mindharbor.common.ConflictException;
 import com.mindharbor.common.ResourceNotFoundException;
+import com.mindharbor.common.storage.AvatarContent;
+import com.mindharbor.common.storage.AvatarStorage;
+import com.mindharbor.common.storage.CountingInputStream;
 import com.mindharbor.modules.admin.entity.AdminOperationLog;
 import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.user.dto.LoginRequest;
@@ -14,7 +18,10 @@ import com.mindharbor.modules.user.service.UserService;
 import com.mindharbor.modules.user.service.UserSettingsService;
 import com.mindharbor.modules.user.vo.UserVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.time.Instant;
 import com.mindharbor.modules.user.vo.PageResult;
@@ -22,28 +29,32 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.mindharbor.security.CurrentUserProvider;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.beans.factory.annotation.Value;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class UserServiceImpl implements UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
+
     private static final int MAX_LOGIN_ATTEMPTS = 5;
 
     private static final long LOCK_MINUTES = 15;
+
+    private static final long MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
+    /** 头像文件名由服务端生成，固定为 UUID + 扩展名，据此拒绝任何拼接出的越权路径。 */
+    private static final Pattern AVATAR_FILENAME_PATTERN = Pattern.compile(
+            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:jpg|png|webp)");
 
     private final UserMapper mapper;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserProvider currentUserProvider;
     private final UserSettingsService userSettingsService;
     private final AdminOperationLogService operationLogService;
-    private final Path avatarUploadDirectory;
+    private final AvatarStorage avatarStorage;
 
     public UserServiceImpl(
             UserMapper mapper,
@@ -51,13 +62,13 @@ public class UserServiceImpl implements UserService {
             CurrentUserProvider currentUserProvider,
             UserSettingsService userSettingsService,
             AdminOperationLogService operationLogService,
-            @Value("${user.avatar-upload-dir:./uploads/avatars}") String avatarUploadDirectory) {
+            AvatarStorage avatarStorage) {
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
         this.currentUserProvider = currentUserProvider;
         this.userSettingsService = userSettingsService;
         this.operationLogService = operationLogService;
-        this.avatarUploadDirectory = Paths.get(avatarUploadDirectory).toAbsolutePath().normalize();
+        this.avatarStorage = avatarStorage;
     }
 
     @Override
@@ -155,7 +166,7 @@ public class UserServiceImpl implements UserService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择头像文件");
         }
-        if (file.getSize() > 2 * 1024 * 1024) {
+        if (file.getSize() > MAX_AVATAR_BYTES) {
             throw new IllegalArgumentException("头像大小不能超过 2MB");
         }
         String contentType = file.getContentType() == null
@@ -168,41 +179,72 @@ public class UserServiceImpl implements UserService {
             default -> throw new IllegalArgumentException("仅支持 JPG、PNG 或 WEBP 图片");
         };
 
-        try {
-            Files.createDirectories(avatarUploadDirectory);
-            String filename = UUID.randomUUID() + extension;
-            Path target = avatarUploadDirectory.resolve(filename).normalize();
-            if (!target.getParent().equals(avatarUploadDirectory)) {
-                throw new IllegalArgumentException("头像文件路径无效");
-            }
-            try (InputStream inputStream = file.getInputStream()) {
-                Files.copy(inputStream, target);
-            }
+        String filename = UUID.randomUUID() + extension;
+        // 先读满并计数：对象存储必须在写入前就知道长度，且这样能在落盘/上传前拦掉超限请求。
+        byte[] bytes = readWithinLimit(file);
+        String newUrl = avatarStorage.save(
+                new ByteArrayInputStream(bytes), bytes.length, filename, contentType);
+        if (!newUrl.startsWith(AvatarStorage.URL_PREFIX + "/")) {
+            throw new IllegalStateException("存储实现返回了非法的访问路径");
+        }
 
-            User user = currentEntity();
-            String previousUrl = user.getAvatarUrl();
-            user.setAvatarUrl("/uploads/avatars/" + filename);
-            mapper.updateById(user);
-            deletePreviousAvatar(previousUrl);
-            return toView(user);
+        User user = currentEntity();
+        String previousUrl = user.getAvatarUrl();
+        // 条件更新：旧值被其它请求改走时影响行数为 0，避免把对方的头像当成自己的旧头像删除。
+        if (mapper.updateAvatarIfUnchanged(user.getId(), newUrl, previousUrl) == 0) {
+            // 必须先清理本次上传的对象再抛异常，否则方法中断后它会成为无人引用的孤儿。
+            deleteAvatarResource(newUrl, user.getId());
+            throw new ConflictException("头像已被其它请求更新，请刷新后重试");
+        }
+
+        deleteAvatarResource(previousUrl, user.getId());
+        // 条件更新只写入 avatar_url 一列，内存中的 user 其余字段可能已过期，重新查库再组装响应。
+        return toView(currentEntity());
+    }
+
+    /**
+     * 读满上传流并返回字节内容，同时用计数流确认真实长度不超过上限。
+     * 之所以不直接流式交给存储层：对象存储需要预先拿到长度，而长度只有读完才知道。
+     */
+    private byte[] readWithinLimit(MultipartFile file) {
+        try (CountingInputStream counting =
+                     new CountingInputStream(file.getInputStream(), MAX_AVATAR_BYTES)) {
+            return counting.readAllBytes();
         } catch (IOException exception) {
-            throw new IllegalStateException("头像保存失败", exception);
+            throw new IllegalArgumentException("头像文件读取失败或超过大小限制", exception);
         }
     }
 
-    private void deletePreviousAvatar(String avatarUrl) {
-        if (avatarUrl == null || !avatarUrl.startsWith("/uploads/avatars/")) {
+    @Override
+    public AvatarContent loadAvatar(String filename) {
+        if (!isAvatarFilename(filename)) {
+            throw new ResourceNotFoundException("头像不存在");
+        }
+        return avatarStorage.load(filename);
+    }
+
+    /**
+     * 清理服务端生成的头像文件，只做路径形态校验，<b>不做归属校验</b>，调用方必须保证传入的是该用户的 avatarUrl。
+     * 删除失败只记日志、不阻断主流程，但要带上 userId 与 filename，便于回溯孤儿对象。
+     */
+    private void deleteAvatarResource(String avatarUrl, Long userId) {
+        String prefix = AvatarStorage.URL_PREFIX + "/";
+        if (avatarUrl == null || !avatarUrl.startsWith(prefix)) {
             return;
         }
-        String filename = avatarUrl.substring("/uploads/avatars/".length());
-        Path previous = avatarUploadDirectory.resolve(filename).normalize();
-        if (previous.getParent().equals(avatarUploadDirectory)) {
-            try {
-                Files.deleteIfExists(previous);
-            } catch (IOException exception) {
-                // 旧头像清理失败不影响新头像使用。
-            }
+        String filename = avatarUrl.substring(prefix.length());
+        if (!isAvatarFilename(filename)) {
+            return;
         }
+        try {
+            avatarStorage.delete(filename);
+        } catch (RuntimeException exception) {
+            log.warn("删除头像资源失败，userId={}，filename={}", userId, filename, exception);
+        }
+    }
+
+    private boolean isAvatarFilename(String filename) {
+        return filename != null && AVATAR_FILENAME_PATTERN.matcher(filename).matches();
     }
 
     @Override
@@ -227,7 +269,8 @@ public class UserServiceImpl implements UserService {
         String anonymizedUsername = "closed_" + user.getId();
         userSettingsService.disableDataConsent(user.getId());
         mapper.markDeactivated(user.getId(), anonymizedUsername, Instant.now());
-        deletePreviousAvatar(previousAvatar);
+        // 注销后 avatar_url 已置空，孤儿对象再无记录可说明归属，因此日志必须带 userId。
+        deleteAvatarResource(previousAvatar, user.getId());
     }
 
     private UserVO toView(User user) {

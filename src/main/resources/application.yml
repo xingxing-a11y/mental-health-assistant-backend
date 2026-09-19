@@ -96,8 +96,19 @@ cache:
     wait-millis: ${CACHE_REBUILD_LOCK_WAIT_MILLIS:100}
 app:
   version: ${APP_VERSION:1.0.0}
-user:
-  avatar-upload-dir: ${AVATAR_UPLOAD_DIR:./uploads/avatars}
+
+# 上传文件存储：type=local 写本地磁盘（默认），type=oss 写阿里云 OSS。
+# OSS 模式保持 bucket 私有，头像由后端代理读取，因此对外地址与本地模式完全一致；密钥只从环境变量注入。
+storage:
+  type: ${STORAGE_TYPE:local}
+  local:
+    directory: ${AVATAR_UPLOAD_DIR:./uploads/avatars}
+  oss:
+    endpoint: ${OSS_ENDPOINT:}
+    bucket: ${OSS_BUCKET:}
+    access-key-id: ${OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+    key-prefix: ${OSS_KEY_PREFIX:avatars}
 
 # 会话导出：字体只缓存字节数组，每次导出新建 BaseFont；并发超限返回 429。
 export:

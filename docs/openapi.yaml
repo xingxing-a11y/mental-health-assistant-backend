@@ -171,10 +171,14 @@ paths:
       summary: 上传当前用户头像
       description: |-
         使用 multipart/form-data 上传，字段名固定为 file，仅接受 image/jpeg、image/png、image/webp，单文件最大 2MB，超限返回 400。
-        文件以随机 UUID 命名保存到配置项 user.avatar-upload-dir（默认 ./uploads/avatars，可用环境变量 AVATAR_UPLOAD_DIR 覆盖），
-        数据库 users.avatar_url 只保存 /uploads/avatars/<文件名> 相对路径，
-        并通过 GET /uploads/avatars/<文件名> 提供访问，该地址同样需要登录，未登录返回 401。
-        上传成功后 data 为当前用户对象（包含新的 avatarUrl），同时删除该用户上一张头像文件。
+        文件以随机 UUID 命名，按配置项 storage.type 落到两处存储之一：local 写本地磁盘（storage.local.directory，默认 ./uploads/avatars，可用环境变量 AVATAR_UPLOAD_DIR 覆盖），oss 写阿里云 OSS（storage.oss.*，bucket 保持私有）。
+        数据库 users.avatar_url 只保存 /uploads/avatars/&lt;文件名&gt; 相对路径，
+        读取统一由 GET /uploads/avatars/{filename} 承担，两种存储对外地址一致，同样需要登录，未登录返回 401。
+        上传成功后 data 为当前用户对象（包含新的 avatarUrl），同时删除该用户上一张头像文件；旧头像清理失败不影响本次上传。
+        文件名与实际字节数均由服务端实测，不信任请求声明的长度；超过 2MB 在读取阶段即中断并返回 400。
+        写库采用条件更新（UPDATE ... WHERE id=? AND avatar_url &lt;=&gt; 原值）：
+        若同一用户在本次请求期间已由另一请求改过头像，本次更新影响行数为 0，服务端先删除刚上传的新对象再返回 409，
+        不会覆盖对方的结果，也不会留下无引用对象。
       requestBody:
         required: true
         content:
@@ -194,6 +198,53 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /uploads/avatars/{filename}:
+    get:
+      tags: [User]
+      summary: 读取头像文件
+      description: |-
+        返回头像图片的二进制内容，响应体不是 { code, message, data } 结构，因此不套 ApiResponse。
+        该地址需要登录，未登录返回 401；文件名不符合上传接口生成的形态、或头像文件不存在，都返回 404。
+        404 是空响应体，不带 ApiResponse JSON——本接口成功时返回二进制流，与全局异常处理器产出
+        的 JSON 不同源，因此异常在本控制器内被收敛为无体 404，浏览器的 &lt;img&gt; 标签据此直接走 onerror。
+        头像存本地磁盘时直接读文件，存阿里云 OSS 时由后端从私有 bucket 读取后转发，客户端不接触任何存储凭据，也无法绕过登录直接访问对象存储。
+        响应带 Cache-Control: private, max-age=3600；文件名是随机 UUID、内容不会再变化，可以安全缓存。
+        响应同时带 Content-Disposition: inline 与 X-Content-Type-Options: nosniff。
+      parameters:
+        - $ref: '#/components/parameters/AvatarFilename'
+      responses:
+        '200':
+          description: 头像图片内容
+          headers:
+            Cache-Control:
+              description: 固定为 private, max-age=3600
+              schema: { type: string }
+            Content-Disposition:
+              description: 固定为 inline，避免浏览器弹下载框
+              schema: { type: string }
+            X-Content-Type-Options:
+              description: 固定为 nosniff，禁止浏览器嗅探内容类型
+              schema: { type: string }
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: |-
+            头像不存在，或文件名不符合上传接口生成的形态，两者不区分，避免用错误码探测存储布局。
+            响应体为空，不返回 ApiResponse JSON。
+          headers:
+            X-Content-Type-Options:
+              description: 固定为 nosniff
+              schema: { type: string }
 
   /chat/sessions:
     get:
@@ -1834,6 +1885,12 @@ components:
       in: path
       required: true
       schema: { type: integer, format: int64 }
+    AvatarFilename:
+      name: filename
+      in: path
+      required: true
+      description: 头像文件名，形如 &lt;uuid&gt;.jpg，由上传接口生成；只接受该形态，其它取值一律按不存在处理。
+      schema: { type: string, example: 0f0d6a5c-2b1f-4a3e-9c2d-7d5f1a2b3c4d.png }
     Page:
       name: page
       in: query
@@ -2380,6 +2437,12 @@ components:
             $ref: '#/components/schemas/ApiResponse'
     NotFound:
       description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+    Conflict:
+      description: 资源状态已被其它请求改变，本次操作未生效；客户端应重新拉取最新状态后再试
       content:
         application/json:
           schema:

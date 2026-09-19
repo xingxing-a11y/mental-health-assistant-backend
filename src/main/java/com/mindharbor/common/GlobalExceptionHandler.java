@@ -47,6 +47,13 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(403, exception.getMessage(), null));
     }
 
+    /** 同一资源被并发修改，条件更新未命中，提示客户端重新读取后再提交。 */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> conflict(ConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(409, exception.getMessage(), null));
+    }
+
     /** 导出等重资源操作并发超限，返回 429 让客户端稍后重试。 */
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<ApiResponse<Void>> tooManyRequests(TooManyRequestsException exception) {

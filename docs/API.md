@@ -10,10 +10,11 @@
 - 后端真实 URL 必须包含 `/api/v1`，推荐配置 `server.servlet.context-path=/api/v1`。
 - 统一响应：`{ code, message, data }`。HTTP 状态码与业务 `code` 分开。
 - 登录和注册通过 `Set-Cookie` 写入 `HttpOnly` JWT Cookie；前端不接收或保存 JWT 字符串。
-- `400` 表示参数校验或业务校验不通过，`401` 表示未登录或令牌无效，`403` 表示无权限（访问他人资源或普通用户调用管理员接口），`404` 表示资源不存在，`405` 表示请求方法不支持，`429` 表示重资源操作（例如会话导出）并发超限、需要稍后重试，`500` 表示服务器异常。
-- 资源不存在统一抛出 `ResourceNotFoundException` 并映射为 HTTP `404`；参数格式、必填项和业务规则校验失败映射为 `400`；访问他人资源抛出 `SecurityException` 并映射为 `403`；重资源操作并发超限抛出 `TooManyRequestsException` 并映射为 `429`。
+- `400` 表示参数校验或业务校验不通过，`401` 表示未登录或令牌无效，`403` 表示无权限（访问他人资源或普通用户调用管理员接口），`404` 表示资源不存在，`405` 表示请求方法不支持，`409` 表示资源状态已被其它请求改变、本次操作未生效（需重新拉取最新状态后再试），`429` 表示重资源操作（例如会话导出）并发超限、需要稍后重试，`500` 表示服务器异常。
+- 资源不存在统一抛出 `ResourceNotFoundException` 并映射为 HTTP `404`；参数格式、必填项和业务规则校验失败映射为 `400`；访问他人资源抛出 `SecurityException` 并映射为 `403`；条件更新影响行数为 0 时抛出 `ConflictException` 并映射为 `409`；重资源操作并发超限抛出 `TooManyRequestsException` 并映射为 `429`。
+  - 唯一例外：`GET /uploads/avatars/{filename}` 的 `404` 是**空响应体**而非 `{ code, message, data }`，因为该接口成功时返回二进制流、与异常处理器的 JSON 不同源。详见「用户」章节的头像说明。
 - 无需登录即可访问的接口：注册、登录、公开文章、公开公告、公开量表列表与详情、系统政策说明（`GET /system/policy`）以及接口文档页面；其余接口都需要浏览器自动携带 `mh_token` HttpOnly Cookie。
-- 上传文件（当前仅头像）通过 `/uploads/avatars/**` 提供，同样需要登录后访问，未登录返回 `401`。
+- 上传文件（当前仅头像）读取地址统一为 `GET /uploads/avatars/{filename}`，由 `AvatarController` 返回二进制内容；该地址需要登录，未登录返回 `401`，未登录状态下不会读到任何图片字节。
 - 管理员接口必须由后端实际校验 `ADMIN` 角色，OpenAPI 的 security 仅用于文档表达。
 - `/admin/**` 请求会校验 JWT 中的 `role=ADMIN`，普通用户令牌访问管理员接口返回 `403`。
 - 接口鉴权由 Spring Security 统一裁决（`com.mindharbor.config.SecurityConfig`）：只放行注册、登录、公开文章、公开公告和公开量表，`/admin/**` 要求 `ROLE_ADMIN`，其余接口一律要求已登录。
@@ -34,14 +35,29 @@
 | GET | `/users/me` | 查询当前用户资料 |
 | PUT | `/users/me` | 修改用户名、性别、年龄 |
 | POST | `/users/me/avatar` | 上传当前用户头像（JPG、PNG、WEBP，最大 2MB） |
+| GET | `/uploads/avatars/{filename}` | 读取头像图片，返回二进制内容，需登录 |
 | PUT | `/users/me/password` | 校验旧密码后修改密码 |
 
-头像上传说明：
+头像上传与读取说明：
 
 - 请求为 `multipart/form-data`，字段名固定为 `file`；仅接受 `image/jpeg`、`image/png`、`image/webp`，单文件最大 2MB，超限返回 400。
-- 服务端以随机 UUID 作为文件名，保存到配置项 `user.avatar-upload-dir` 指定的目录，默认 `./uploads/avatars`（相对后端进程启动目录，即通常在 `assistant-backend/uploads/avatars`），可用环境变量 `AVATAR_UPLOAD_DIR` 覆盖。
-- 数据库 `users.avatar_url` 只保存相对路径 `/uploads/avatars/<文件名>`；访问地址为 `http://localhost:8080/api/v1/uploads/avatars/<文件名>`，静态资源由 `AvatarResourceConfig` 映射。
-- 上传成功后响应 `data` 为当前用户对象（包含新的 `avatarUrl`），并删除该用户的上一张头像文件；旧文件清理失败不影响本次上传。
+- **文件长度由服务端实测，不信任请求声明的 `contentLength`**：上传时用计数流边读边累加，超过 2MB 立即中断并返回 400，再用实测字节数写入存储。这是为了避免「声明的长度与实际流长度不一致」导致对象损坏（本地会截断文件、OSS 会写出坏对象）。
+- 服务端以随机 UUID 作为文件名，扩展名由 MIME 类型决定；**存到哪里由配置项 `storage.type` 决定**，两种存储对业务代码透明：
+  - `local`（默认）：写入 `storage.local.directory`，默认 `./uploads/avatars`（相对后端进程启动目录，即通常在 `assistant-backend/uploads/avatars`），可用环境变量 `AVATAR_UPLOAD_DIR` 覆盖。
+  - `oss`：写入阿里云 OSS 的 `storage.oss.bucket`，对象键为 `<storage.oss.key-prefix>/<文件名>`（默认 `avatars/<文件名>`）。bucket 保持私有，因此头像不会暴露成公网链接。
+  - `storage.type` 只接受 `local` / `oss`，写成其它值**不会降级也不会静默失败**，启动时直接抛出「storage.type 仅支持 local 或 oss，当前值：…」。
+  - `storage.type=oss` 但 OSS 参数不全，启动直接抛出「对象存储配置缺失：…」并列出缺哪几项，避免静默退回本地存储。
+- 数据库 `users.avatar_url` 只保存相对路径 `/uploads/avatars/<文件名>`；访问地址为 `http://localhost:8080/api/v1/uploads/avatars/<文件名>`，由 `AvatarController` 统一读取，两种存储对外地址完全一致，前端不需要区分。
+- 读头像时文件名必须符合上传接口生成的形态（UUID + `.jpg`/`.png`/`.webp`）；不合法或文件不存在都返回 404，不区分「格式错误」和「不存在」，避免用错误码探测存储布局。
+- **404 是空响应体，不返回 `ApiResponse` JSON**。原因是本接口成功时返回二进制流，而全局异常处理器产出的是 JSON，两者不同源、无法互相序列化；因此 `ResourceNotFoundException` 被在控制器内收敛为无体 404，让浏览器的 `<img>` 标签能直接走 `onerror` 分支。其它接口的 404 仍是 JSON。
+- 响应头带 `Cache-Control: private, max-age=3600`：文件名是随机 UUID、内容不会再变化，因此可以缓存；同时 `private` 保证图片不会被中间代理缓存给其他用户。
+- 响应头同时带 `Content-Disposition: inline`（避免浏览器对未知类型弹下载框）与 `X-Content-Type-Options: nosniff`（禁止内容类型嗅探）。
+- 上传成功后响应 `data` 为当前用户对象（包含新的 `avatarUrl`），并删除该用户的上一张头像文件；旧文件清理失败只记警告日志，不影响本次上传，也不会让接口报错。
+- **写库使用条件更新而非整行覆盖**：`UPDATE users SET avatar_url=? WHERE id=? AND avatar_url <=> ?`（`<=>` 是 NULL 安全等于，首次上传时旧值为 NULL 也能命中）。
+  - 若同一用户在本次请求处理期间已被另一个并发请求改过头像，本次更新影响行数为 0，服务端**先删除刚上传的新对象再返回 `409`**，不会覆盖对方的结果、也不会留下无引用对象。
+  - 客户端收到 409 后应重新拉取用户信息展示最新头像，再决定是否重试。
+- 读头像（`loadAvatar`）同样会把对象读入内存后再转发，上限 2MB。与上传路径的取舍不同：读取时持有完整字节是为了在写出响应前确认对象确实存在，避免响应中途断连导致 OSS 连接悬挂。
+- 切换 `storage.type` 不会迁移历史文件：从 `local` 切到 `oss` 后，旧头像仍留在本地目录且无法再通过接口读取，需要人工迁移或让用户重新上传。
 
 ### AI 对话
 
@@ -222,7 +238,9 @@
 
 - 注销采用匿名化保留，不物理删除会话、消息、日记、测评与收藏等业务数据。
 - 单条 `UPDATE users` 完成：`status=CLOSED`、写入 `deactivated_at`、`username` 改写为 `closed_{id}`，清空 `nickname`、`avatar_url`、`gender`、`age`，并重置登录失败计数与锁定状态。
-- 更新成功后删除头像文件（失败只记日志，不影响注销结果），并强制关闭 `data_consent`。
+- 更新成功后删除头像文件（失败只记警告日志，不影响注销结果），并强制关闭 `data_consent`。
+  - 注销后 `avatar_url` 已置空，删失败留下的对象**再无任何记录能说明归属**，因此该路径的删除日志会同时带上 `userId` 与 `filename`，便于事后人工排查。
+  - 与换头像不同的是，注销路径**不使用条件更新（CAS）**：注销是用户主动发起的终态操作，即便与换头像并发，最终 `avatar_url` 为 NULL 也与「账号已注销」的语义一致，不会产生可观察的 404。详见 `UserServiceImpl.deactivate`。
 - 状态不是 `ACTIVE` 的账号立即无法访问接口：禁用与注销使用不同提示文案，旧 Cookie 在令牌过期前即失效。
 
 ### 通知
@@ -374,6 +392,22 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 - Controller 记录必要的 `log.info`，异常记录 `log.error`，不得输出敏感信息。
 - `openapi.yaml` 是正式接口定义，本文档是面向开发人员的补充说明；修改接口时必须同步更新两者。
 
+## 运行测试
+
+后端已引入 `spring-boot-starter-test`（`test` scope），测试统一放在 `src/test/java` 下，入口只有一条命令：
+
+```bash
+cd assistant-backend
+mvn test
+```
+
+首次运行需要联网拉取测试依赖（`settings.xml` 的 aliyun 镜像可满足）；依赖落地后 `mvn -o test` 可离线执行。
+
+- **不依赖任何外部服务**：测试全部使用手工 `AnnotationConfigApplicationContext` 并只注册被测配置类，**不使用 `@SpringBootTest`**，因此不需要启动 MySQL、Redis 或 Chroma。这是刻意的约束——一旦改用 `@SpringBootTest`，`mvn test` 就不再能随时执行。
+- **对象存储测试不连真实 OSS**：`OssAvatarStorageTest` 用动态代理桩（`FakeOss`）模拟服务端，不需要真实凭证，也能稳定注入 `NoSuchKey`、`AccessDenied` 等错误码来验证分类逻辑。
+- **覆盖范围**：存储条件装配与非法配置的快速失败、本地磁盘读写与目录穿越防护、OSS 读写与错误码分类、头像大小上限（含 `skip()` 绕过这条越权路径）、头像读取接口的响应形态与响应头、并发冲突的 409 映射。
+- **`@TempDir` 的用法**：不要把它写成 `@ParameterizedTest` 的方法参数——`TempDirectory` 扩展与参数化测试的参数解析器会争夺同一个参数位而直接报错；请使用字段级 `@TempDir`。
+
 ## 部署与配置
 
 本项目按单体应用部署：`assistant-web` 是前端工程，`assistant-backend` 是 Spring Boot 服务，
@@ -407,7 +441,12 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 | `JWT_SECRET` | 空 | 至少 32 字节随机值，缺失或过短时启动直接失败 |
 | `JWT_EXPIRATION_SECONDS` | `7200` | 令牌有效期（秒）；登录 Cookie 的 `Max-Age` 复用该值 |
 | `COOKIE_SECURE` | `false` | 站点走 HTTPS 时设为 `true` |
-| `AVATAR_UPLOAD_DIR` | `./uploads/avatars` | 头像保存目录，需对进程可写 |
+| `STORAGE_TYPE` | `local` | 上传文件存储方式：`local` 写本地磁盘，`oss` 写阿里云 OSS |
+| `AVATAR_UPLOAD_DIR` | `./uploads/avatars` | `STORAGE_TYPE=local` 时的头像保存目录，需对进程可写 |
+| `OSS_ENDPOINT` | 空 | `STORAGE_TYPE=oss` 时必填，例如 `https://oss-cn-hangzhou.aliyuncs.com` |
+| `OSS_BUCKET` | 空 | `STORAGE_TYPE=oss` 时必填，bucket 保持私有，不要设为公共读 |
+| `OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET` | 空 | `STORAGE_TYPE=oss` 时必填，只从环境变量注入，不写进配置文件 |
+| `OSS_KEY_PREFIX` | `avatars` | OSS 对象键前缀，头像最终存为 `<前缀>/<文件名>` |
 | `EXPORT_PDF_FONT_PATH` | 空 | 会话导出使用的中文字体绝对路径 |
 
 安全约定：

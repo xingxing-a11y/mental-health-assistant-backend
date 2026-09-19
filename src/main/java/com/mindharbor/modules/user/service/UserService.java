@@ -1,5 +1,6 @@
 package com.mindharbor.modules.user.service;
 
+import com.mindharbor.common.storage.AvatarContent;
 import com.mindharbor.modules.user.dto.LoginRequest;
 import com.mindharbor.modules.user.dto.RegisterRequest;
 import com.mindharbor.modules.user.dto.PasswordUpdateRequest;
@@ -21,6 +22,9 @@ public interface UserService {
     UserVO updateProfile(ProfileUpdateRequest request);
 
     UserVO updateAvatar(MultipartFile file);
+
+    /** 读取头像文件；文件名非法或文件不存在都按不存在处理，供代理转发使用。 */
+    AvatarContent loadAvatar(String filename);
 
     void updatePassword(PasswordUpdateRequest request);
 

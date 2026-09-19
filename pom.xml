@@ -19,6 +19,7 @@
     <java-jwt.version>4.4.0</java-jwt.version>
     <springdoc.version>2.7.0</springdoc.version>
     <openpdf.version>2.0.3</openpdf.version>
+    <aliyun-oss.version>3.18.2</aliyun-oss.version>
   </properties>
 
   <repositories>
@@ -113,6 +114,13 @@
       <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
 
+    <!-- 阿里云 OSS：上传文件（当前为头像）的对象存储后端，storage.type=oss 时才装配。 -->
+    <dependency>
+      <groupId>com.aliyun.oss</groupId>
+      <artifactId>aliyun-sdk-oss</artifactId>
+      <version>${aliyun-oss.version}</version>
+    </dependency>
+
     <!-- 常用工具、AOP 和邮件能力。 -->
     <dependency>
       <groupId>cn.hutool</groupId>
@@ -145,6 +153,13 @@
     <dependency>
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-vector-store-chroma</artifactId>
+    </dependency>
+
+    <!-- 测试：JUnit 5、AssertJ 与 Spring 测试支持。仅测试期可见，不进运行期依赖。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
