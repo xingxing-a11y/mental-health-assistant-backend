@@ -2,9 +2,13 @@ package com.mindharbor.modules.admin.controller;
 
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.admin.dto.AnnouncementRequest;
+import com.mindharbor.modules.admin.entity.Announcement;
 import com.mindharbor.modules.admin.service.AdminOperationsService;
 import com.mindharbor.modules.admin.service.AnnouncementService;
+import com.mindharbor.modules.admin.vo.HighRiskAuditVO;
+import com.mindharbor.modules.admin.vo.StatisticsOverviewVO;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -34,31 +38,32 @@ public class AdminOperationsController {
     }
 
     @GetMapping("/audits/high-risk")
-    public ApiResponse<?> highRisk() {
+    public ApiResponse<List<HighRiskAuditVO>> highRisk() {
         log.info("List high risk chat session audits");
         return ApiResponse.ok(adminOperationsService.highRiskAudits());
     }
 
     @GetMapping("/statistics/overview")
-    public ApiResponse<?> statistics() {
+    public ApiResponse<StatisticsOverviewVO> statistics() {
         log.info("Load administrator statistics overview");
         return ApiResponse.ok(adminOperationsService.statisticsOverview());
     }
 
     @GetMapping("/announcements")
-    public ApiResponse<?> listAnnouncements() {
+    public ApiResponse<List<Announcement>> listAnnouncements() {
         log.info("List announcements for administrator");
         return ApiResponse.ok(announcementService.list());
     }
 
     @PostMapping("/announcements")
-    public ApiResponse<?> createAnnouncement(@Valid @RequestBody AnnouncementRequest request) {
+    public ApiResponse<Announcement> createAnnouncement(
+            @Valid @RequestBody AnnouncementRequest request) {
         log.info("Create announcement");
         return ApiResponse.ok(announcementService.create(request));
     }
 
     @PutMapping("/announcements/{announcementId}")
-    public ApiResponse<?> updateAnnouncement(
+    public ApiResponse<Announcement> updateAnnouncement(
             @PathVariable Long announcementId,
             @Valid @RequestBody AnnouncementRequest request) {
         log.info("Update announcement, announcementId={}", announcementId);
@@ -66,7 +71,7 @@ public class AdminOperationsController {
     }
 
     @DeleteMapping("/announcements/{announcementId}")
-    public ApiResponse<?> deleteAnnouncement(@PathVariable Long announcementId) {
+    public ApiResponse<Void> deleteAnnouncement(@PathVariable Long announcementId) {
         log.info("Delete announcement, announcementId={}", announcementId);
         announcementService.delete(announcementId);
         return ApiResponse.ok(null);

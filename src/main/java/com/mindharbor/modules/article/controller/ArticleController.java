@@ -1,7 +1,9 @@
 package com.mindharbor.modules.article.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.modules.article.entity.Article;
 import com.mindharbor.modules.article.service.ArticleService;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,13 +26,13 @@ public class ArticleController {
     }
 
     @GetMapping
-    public ApiResponse<?> list(@RequestParam(required = false) String keyword) {
+    public ApiResponse<List<Article>> list(@RequestParam(required = false) String keyword) {
         log.info("List public psychology articles");
         return ApiResponse.ok(service.list(keyword));
     }
 
     @GetMapping("/{articleId}")
-    public ApiResponse<?> get(@PathVariable Long articleId) {
+    public ApiResponse<Article> get(@PathVariable Long articleId) {
         log.info("Get psychology article, articleId={}", articleId);
         return ApiResponse.ok(service.get(articleId));
     }

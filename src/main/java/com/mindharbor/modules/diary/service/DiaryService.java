@@ -1,25 +1,27 @@
 package com.mindharbor.modules.diary.service;
 
 import com.mindharbor.modules.diary.dto.DiaryRequest;
+import com.mindharbor.modules.diary.vo.DiaryVO;
+import com.mindharbor.modules.diary.vo.EmotionTrendPointVO;
 import com.mindharbor.modules.user.vo.PageResult;
 import java.time.LocalDate;
 import java.util.List;
 
 public interface DiaryService {
 
-    List<?> listRecent();
+    List<DiaryVO> listRecent();
 
-    PageResult<?> listAll(int page, int size, LocalDate startDate, LocalDate endDate);
+    PageResult<DiaryVO> listAll(int page, int size, LocalDate startDate, LocalDate endDate);
 
-    Object get(Long id);
+    DiaryVO get(Long id);
 
-    Object create(DiaryRequest request);
+    DiaryVO create(DiaryRequest request);
 
-    Object update(Long id, DiaryRequest request);
+    DiaryVO update(Long id, DiaryRequest request);
 
     void delete(Long id);
 
     String analyze(Long id);
 
-    List<?> trend(LocalDate startDate, LocalDate endDate);
+    List<EmotionTrendPointVO> trend(LocalDate startDate, LocalDate endDate);
 }

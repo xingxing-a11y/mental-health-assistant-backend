@@ -35,4 +35,6 @@ desktop.ini
 # User uploads
 uploads/
 
-1
+# 本地运维笔记，不纳入版本控制；必须锚定到 docs/ 下，
+# 写成裸的 1 会匹配仓库里任意层级所有同名文件
+docs/1

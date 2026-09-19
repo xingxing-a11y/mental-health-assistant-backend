@@ -19,6 +19,20 @@ public interface UserMapper extends BaseMapper<User> {
     Optional<User> findByUsername(String username);
 
     /**
+     * 写入登录失败次数与锁定截止时间，成功登录时以 (0, null) 复位。
+     *
+     * <p>必须显式写 SQL，不能改用 {@code updateById}：MyBatis-Plus 默认跳过 null 字段，
+     * 那样成功登录时 {@code locked_until} 根本清不掉，锁定标记会一直留在库里。
+     */
+    @Update("UPDATE users SET failed_login_attempts = #{attempts}, "
+            + "locked_until = #{lockedUntil} "
+            + "WHERE id = #{id}")
+    int updateLoginFailures(
+            @Param("id") Long id,
+            @Param("attempts") int attempts,
+            @Param("lockedUntil") Instant lockedUntil);
+
+    /**
      * 注销账号：只改写身份字段并置为 CLOSED，会话、日记与测评数据保持不变。
      * 必须显式写 SQL，MyBatis-Plus 的 updateById 会忽略 null 字段，无法清空资料列。
      */

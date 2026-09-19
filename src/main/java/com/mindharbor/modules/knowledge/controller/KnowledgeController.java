@@ -2,8 +2,10 @@ package com.mindharbor.modules.knowledge.controller;
 
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.knowledge.dto.KnowledgeDocumentRequest;
+import com.mindharbor.modules.knowledge.entity.KnowledgeDocument;
 import com.mindharbor.modules.knowledge.service.KnowledgeService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,19 +31,20 @@ public class KnowledgeController {
     }
 
     @GetMapping
-    public ApiResponse<?> list() {
+    public ApiResponse<List<KnowledgeDocument>> list() {
         log.info("List knowledge documents");
         return ApiResponse.ok(service.list());
     }
 
     @PostMapping
-    public ApiResponse<?> create(@Valid @RequestBody KnowledgeDocumentRequest request) {
+    public ApiResponse<KnowledgeDocument> create(
+            @Valid @RequestBody KnowledgeDocumentRequest request) {
         log.info("Create knowledge document");
         return ApiResponse.ok(service.create(request));
     }
 
     @PutMapping("/{documentId}")
-    public ApiResponse<?> update(
+    public ApiResponse<KnowledgeDocument> update(
             @PathVariable Long documentId,
             @Valid @RequestBody KnowledgeDocumentRequest request) {
         log.info("Update knowledge document, documentId={}", documentId);
@@ -49,20 +52,20 @@ public class KnowledgeController {
     }
 
     @DeleteMapping("/{documentId}")
-    public ApiResponse<?> delete(@PathVariable Long documentId) {
+    public ApiResponse<Void> delete(@PathVariable Long documentId) {
         log.info("Delete knowledge document, documentId={}", documentId);
         service.delete(documentId);
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/{documentId}/vectorize")
-    public ApiResponse<?> vectorize(@PathVariable Long documentId) {
+    public ApiResponse<KnowledgeDocument> vectorize(@PathVariable Long documentId) {
         log.info("Vectorize knowledge document, documentId={}", documentId);
         return ApiResponse.ok(service.vectorize(documentId, false));
     }
 
     @PostMapping("/{documentId}/re-vectorize")
-    public ApiResponse<?> rebuild(@PathVariable Long documentId) {
+    public ApiResponse<KnowledgeDocument> rebuild(@PathVariable Long documentId) {
         log.info("Re-vectorize knowledge document, documentId={}", documentId);
         return ApiResponse.ok(service.vectorize(documentId, true));
     }

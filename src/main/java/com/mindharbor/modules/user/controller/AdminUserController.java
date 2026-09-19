@@ -3,6 +3,8 @@ package com.mindharbor.modules.user.controller;
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.user.dto.UserStatusRequest;
 import com.mindharbor.modules.user.service.UserService;
+import com.mindharbor.modules.user.vo.PageResult;
+import com.mindharbor.modules.user.vo.UserVO;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +30,7 @@ public class AdminUserController {
     }
 
     @GetMapping
-    public ApiResponse<?> list(
+    public ApiResponse<PageResult<UserVO>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String nickname) {
@@ -37,7 +39,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{userId}/status")
-    public ApiResponse<?> updateStatus(
+    public ApiResponse<UserVO> updateStatus(
             @PathVariable Long userId,
             @Valid @RequestBody UserStatusRequest request) {
         log.info("Update user status, userId={}", userId);

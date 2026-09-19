@@ -3,9 +3,13 @@ package com.mindharbor.modules.diary.controller;
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.diary.dto.DiaryRequest;
 import com.mindharbor.modules.diary.service.DiaryService;
+import com.mindharbor.modules.diary.vo.DiaryAnalysisVO;
+import com.mindharbor.modules.diary.vo.DiaryVO;
+import com.mindharbor.modules.diary.vo.EmotionTrendPointVO;
+import com.mindharbor.modules.user.vo.PageResult;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
-import java.util.Map;
+import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,12 +29,12 @@ public class DiaryController {
     }
 
     @GetMapping("/diaries/recent")
-    public ApiResponse<?> listRecent() {
+    public ApiResponse<List<DiaryVO>> listRecent() {
         return ApiResponse.ok(service.listRecent());
     }
 
     @GetMapping("/diaries")
-    public ApiResponse<?> list(
+    public ApiResponse<PageResult<DiaryVO>> list(
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
             @RequestParam(name = "startDate", required = false) LocalDate startDate,
@@ -42,35 +46,35 @@ public class DiaryController {
     }
 
     @PostMapping("/diaries")
-    public ApiResponse<?> create(@Valid @RequestBody DiaryRequest request) {
+    public ApiResponse<DiaryVO> create(@Valid @RequestBody DiaryRequest request) {
         return ApiResponse.ok(service.create(request));
     }
 
     @GetMapping("/diaries/{diaryId}")
-    public ApiResponse<?> get(@PathVariable Long diaryId) {
+    public ApiResponse<DiaryVO> get(@PathVariable Long diaryId) {
         return ApiResponse.ok(service.get(diaryId));
     }
 
     @PutMapping("/diaries/{diaryId}")
-    public ApiResponse<?> update(
+    public ApiResponse<DiaryVO> update(
             @PathVariable Long diaryId,
             @Valid @RequestBody DiaryRequest request) {
         return ApiResponse.ok(service.update(diaryId, request));
     }
 
     @DeleteMapping("/diaries/{diaryId}")
-    public ApiResponse<?> delete(@PathVariable Long diaryId) {
+    public ApiResponse<Void> delete(@PathVariable Long diaryId) {
         service.delete(diaryId);
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/diaries/{diaryId}/analysis")
-    public ApiResponse<?> analyze(@PathVariable Long diaryId) {
-        return ApiResponse.ok(Map.of("analysis", service.analyze(diaryId)));
+    public ApiResponse<DiaryAnalysisVO> analyze(@PathVariable Long diaryId) {
+        return ApiResponse.ok(new DiaryAnalysisVO(service.analyze(diaryId)));
     }
 
     @GetMapping("/emotions/trend")
-    public ApiResponse<?> trend(
+    public ApiResponse<List<EmotionTrendPointVO>> trend(
             @RequestParam(name = "startDate", required = false) LocalDate startDate,
             @RequestParam(name = "endDate", required = false) LocalDate endDate) {
         return ApiResponse.ok(service.trend(startDate, endDate));

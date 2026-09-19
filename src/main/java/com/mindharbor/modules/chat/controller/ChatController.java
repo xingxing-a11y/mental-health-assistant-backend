@@ -4,11 +4,14 @@ import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.chat.dto.ChatMessageRequest;
 import com.mindharbor.modules.chat.dto.ChatSettingsRequest;
 import com.mindharbor.modules.chat.dto.CreateSessionRequest;
+import com.mindharbor.modules.chat.entity.ChatMessage;
 import com.mindharbor.modules.chat.service.ChatService;
 import com.mindharbor.modules.chat.service.ChatExportService;
 import com.mindharbor.modules.chat.vo.ChatExportFileVO;
+import com.mindharbor.modules.chat.vo.ChatSessionVO;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
@@ -44,40 +47,41 @@ public class ChatController {
     }
 
     @GetMapping
-    public ApiResponse<?> list() {
+    public ApiResponse<List<ChatSessionVO>> list() {
         log.info("List chat sessions");
         return ApiResponse.ok(service.list());
     }
 
     @GetMapping("/archived")
-    public ApiResponse<?> archived() {
+    public ApiResponse<List<ChatSessionVO>> archived() {
         log.info("List archived chat sessions");
         return ApiResponse.ok(service.archived());
     }
 
     @PostMapping
-    public ApiResponse<?> create(@RequestBody(required = false) CreateSessionRequest request) {
+    public ApiResponse<ChatSessionVO> create(
+            @RequestBody(required = false) CreateSessionRequest request) {
         log.info("Create chat session");
         return ApiResponse.ok(service.create(request));
     }
 
     /** 查询会话历史消息。 */
     @GetMapping("/{sessionId}/messages")
-    public ApiResponse<?> history(@PathVariable long sessionId) {
+    public ApiResponse<List<ChatMessage>> history(@PathVariable long sessionId) {
         log.info("Get chat history, sessionId={}", sessionId);
         return ApiResponse.ok(service.history(sessionId));
     }
 
     /** 永久删除已归档会话及其全部消息。 */
     @DeleteMapping("/{sessionId}")
-    public ApiResponse<?> delete(@PathVariable long sessionId) {
+    public ApiResponse<Void> delete(@PathVariable long sessionId) {
         log.info("Delete chat session, sessionId={}", sessionId);
         service.delete(sessionId);
         return ApiResponse.ok(null);
     }
 
     @PutMapping("/{sessionId}/name")
-    public ApiResponse<?> rename(
+    public ApiResponse<ChatSessionVO> rename(
             @PathVariable long sessionId,
             @Valid @RequestBody CreateSessionRequest request) {
         log.info("Rename chat session, sessionId={}", sessionId);
@@ -85,19 +89,19 @@ public class ChatController {
     }
 
     @PutMapping("/{sessionId}/pin")
-    public ApiResponse<?> togglePin(@PathVariable long sessionId) {
+    public ApiResponse<ChatSessionVO> togglePin(@PathVariable long sessionId) {
         log.info("Toggle chat session pin, sessionId={}", sessionId);
         return ApiResponse.ok(service.togglePin(sessionId));
     }
 
     @PutMapping("/{sessionId}/archive")
-    public ApiResponse<?> archive(@PathVariable long sessionId) {
+    public ApiResponse<ChatSessionVO> archive(@PathVariable long sessionId) {
         log.info("Archive chat session, sessionId={}", sessionId);
         return ApiResponse.ok(service.archive(sessionId));
     }
 
     @PutMapping("/{sessionId}/unarchive")
-    public ApiResponse<?> unarchive(@PathVariable long sessionId) {
+    public ApiResponse<ChatSessionVO> unarchive(@PathVariable long sessionId) {
         log.info("Unarchive chat session, sessionId={}", sessionId);
         return ApiResponse.ok(service.unarchive(sessionId));
     }
@@ -131,14 +135,14 @@ public class ChatController {
     }
 
     @DeleteMapping("/{sessionId}/context")
-    public ApiResponse<?> clear(@PathVariable long sessionId) {
+    public ApiResponse<Void> clear(@PathVariable long sessionId) {
         log.info("Clear chat context, sessionId={}", sessionId);
         service.clearContext(sessionId);
         return ApiResponse.ok(null);
     }
 
     @PutMapping("/{sessionId}/settings")
-    public ApiResponse<?> settings(
+    public ApiResponse<Void> settings(
             @PathVariable long sessionId,
             @Valid @RequestBody ChatSettingsRequest request) {
         log.info("Update chat session settings, sessionId={}", sessionId);

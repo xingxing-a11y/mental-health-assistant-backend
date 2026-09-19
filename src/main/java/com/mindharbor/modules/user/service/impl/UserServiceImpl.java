@@ -105,18 +105,14 @@ public class UserServiceImpl implements UserService {
         User user = mapper.findByUsername(request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("用户名或密码错误"));
 
+        // 锁定检查必须排在密码校验之前：否则错误密码会先进入失败分支，
+        // 锁定就只拦得住本人用正确密码登录，对持续爆破完全无效。
+        if (isLocked(user)) {
+            throw new IllegalArgumentException("登录失败次数过多，请稍后再试");
+        }
+
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            int attempts = user.getFailedLoginAttempts() == null
-                    ? 0
-                    : user.getFailedLoginAttempts();
-            user.setFailedLoginAttempts(attempts + 1);
-
-            if (user.getFailedLoginAttempts() >= MAX_LOGIN_ATTEMPTS) {
-                user.setLockedUntil(Instant.now().plusSeconds(LOCK_MINUTES * 60));
-                user.setFailedLoginAttempts(0);
-            }
-
-            mapper.updateById(user);
+            recordLoginFailure(user);
             throw new IllegalArgumentException("用户名或密码错误");
         }
 
@@ -128,15 +124,34 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("账号已被禁用");
         }
 
-        if (user.getLockedUntil() != null
-                && user.getLockedUntil().isAfter(Instant.now())) {
-            throw new IllegalArgumentException("登录失败次数过多，请稍后再试");
-        }
-
+        // 复位走显式 SQL：updateById 会跳过 null 字段，locked_until 清不掉。
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
-        mapper.updateById(user);
+        mapper.updateLoginFailures(user.getId(), 0, null);
         return toView(user);
+    }
+
+    private boolean isLocked(User user) {
+        return user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now());
+    }
+
+    /**
+     * 累计失败次数，达到上限时改为写入锁定截止时间。
+     * 锁定后计数归零，两种拦截手段不叠加，便于锁定到期后重新计数。
+     */
+    private void recordLoginFailure(User user) {
+        int attempts = user.getFailedLoginAttempts() == null
+                ? 0
+                : user.getFailedLoginAttempts();
+        attempts = attempts + 1;
+
+        Instant lockedUntil = null;
+        if (attempts >= MAX_LOGIN_ATTEMPTS) {
+            lockedUntil = Instant.now().plusSeconds(LOCK_MINUTES * 60);
+            attempts = 0;
+        }
+
+        mapper.updateLoginFailures(user.getId(), attempts, lockedUntil);
     }
 
     @Override

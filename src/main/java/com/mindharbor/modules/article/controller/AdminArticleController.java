@@ -2,8 +2,10 @@ package com.mindharbor.modules.article.controller;
 
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.article.dto.ArticleRequest;
+import com.mindharbor.modules.article.entity.Article;
 import com.mindharbor.modules.article.service.ArticleService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,19 +31,19 @@ public class AdminArticleController {
     }
 
     @GetMapping
-    public ApiResponse<?> list() {
+    public ApiResponse<List<Article>> list() {
         log.info("List articles for administrator");
         return ApiResponse.ok(service.adminList());
     }
 
     @PostMapping
-    public ApiResponse<?> create(@Valid @RequestBody ArticleRequest request) {
+    public ApiResponse<Article> create(@Valid @RequestBody ArticleRequest request) {
         log.info("Create psychology article");
         return ApiResponse.ok(service.create(request));
     }
 
     @PutMapping("/{articleId}")
-    public ApiResponse<?> update(
+    public ApiResponse<Article> update(
             @PathVariable Long articleId,
             @Valid @RequestBody ArticleRequest request) {
         log.info("Update psychology article, articleId={}", articleId);
@@ -49,7 +51,7 @@ public class AdminArticleController {
     }
 
     @DeleteMapping("/{articleId}")
-    public ApiResponse<?> delete(@PathVariable Long articleId) {
+    public ApiResponse<Void> delete(@PathVariable Long articleId) {
         log.info("Delete psychology article, articleId={}", articleId);
         service.delete(articleId);
         return ApiResponse.ok(null);

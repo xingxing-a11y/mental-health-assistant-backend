@@ -6,11 +6,11 @@ import com.mindharbor.modules.user.dto.PasswordUpdateRequest;
 import com.mindharbor.modules.user.dto.ProfileUpdateRequest;
 import com.mindharbor.modules.user.dto.RegisterRequest;
 import com.mindharbor.modules.user.service.UserService;
+import com.mindharbor.modules.user.vo.AuthResultVO;
 import com.mindharbor.modules.user.vo.UserVO;
 import com.mindharbor.security.JwtTokenService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,7 +52,7 @@ public class UserController {
     }
 
     @PostMapping("/auth/register")
-    public ApiResponse<?> register(
+    public ApiResponse<AuthResultVO> register(
             @Valid @RequestBody RegisterRequest request,
             HttpServletResponse response) {
         log.info("Register endpoint called, username={}", request.getUsername());
@@ -60,11 +60,11 @@ public class UserController {
         addAuthCookie(
                 response,
                 tokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
-        return ApiResponse.ok(Map.of("user", user));
+        return ApiResponse.ok(new AuthResultVO(user));
     }
 
     @PostMapping("/auth/login")
-    public ApiResponse<?> login(
+    public ApiResponse<AuthResultVO> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response) {
         log.info("Login endpoint called, username={}", request.getUsername());
@@ -72,36 +72,36 @@ public class UserController {
         addAuthCookie(
                 response,
                 tokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
-        return ApiResponse.ok(Map.of("user", user));
+        return ApiResponse.ok(new AuthResultVO(user));
     }
 
     @PostMapping("/auth/logout")
-    public ApiResponse<?> logout(HttpServletResponse response) {
+    public ApiResponse<Void> logout(HttpServletResponse response) {
         log.info("Logout endpoint called");
         response.addHeader("Set-Cookie", authCookie("", 0).toString());
         return ApiResponse.ok(null);
     }
 
     @GetMapping("/users/me")
-    public ApiResponse<?> current() {
+    public ApiResponse<UserVO> current() {
         log.info("Current profile endpoint called");
         return ApiResponse.ok(service.current());
     }
 
     @PutMapping("/users/me")
-    public ApiResponse<?> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) {
+    public ApiResponse<UserVO> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) {
         log.info("Update current user profile");
         return ApiResponse.ok(service.updateProfile(request));
     }
 
     @PostMapping("/users/me/avatar")
-    public ApiResponse<?> updateAvatar(@RequestPart("file") MultipartFile file) {
+    public ApiResponse<UserVO> updateAvatar(@RequestPart("file") MultipartFile file) {
         log.info("Update current user avatar");
         return ApiResponse.ok(service.updateAvatar(file));
     }
 
     @PutMapping("/users/me/password")
-    public ApiResponse<?> updatePassword(@Valid @RequestBody PasswordUpdateRequest request) {
+    public ApiResponse<Void> updatePassword(@Valid @RequestBody PasswordUpdateRequest request) {
         log.info("Update current user password");
         service.updatePassword(request);
         return ApiResponse.ok(null);
@@ -109,7 +109,7 @@ public class UserController {
 
     /** 注销账号：业务数据匿名化保留，注销后立即清除登录 Cookie。 */
     @PostMapping("/users/me/deactivate")
-    public ApiResponse<?> deactivate(HttpServletResponse response) {
+    public ApiResponse<Void> deactivate(HttpServletResponse response) {
         log.info("Deactivate current account");
         service.deactivate();
         response.addHeader("Set-Cookie", authCookie("", 0).toString());

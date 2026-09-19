@@ -3,8 +3,8 @@ package com.mindharbor.modules.notification.controller;
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.modules.notification.service.NotificationService;
 import com.mindharbor.modules.notification.vo.NotificationVO;
+import com.mindharbor.modules.notification.vo.UnreadCountVO;
 import com.mindharbor.modules.user.vo.PageResult;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,9 +36,9 @@ public class NotificationController {
     }
 
     @GetMapping("/unread-count")
-    public ApiResponse<Map<String, Long>> unreadCount() {
+    public ApiResponse<UnreadCountVO> unreadCount() {
         log.info("Count unread notifications");
-        return ApiResponse.ok(Map.of("count", service.unreadCount()));
+        return ApiResponse.ok(new UnreadCountVO(service.unreadCount()));
     }
 
     @PutMapping("/{id}/read")

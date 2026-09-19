@@ -6,6 +6,8 @@ import com.mindharbor.modules.diary.dto.DiaryRequest;
 import com.mindharbor.modules.diary.entity.Diary;
 import com.mindharbor.modules.diary.mapper.DiaryMapper;
 import com.mindharbor.modules.diary.service.DiaryService;
+import com.mindharbor.modules.diary.vo.DiaryVO;
+import com.mindharbor.modules.diary.vo.EmotionTrendPointVO;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.modules.user.vo.PageResult;
@@ -14,7 +16,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -40,12 +41,15 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
-    public List<?> listRecent() {
-        return mapper.findRecentByUserId(currentUser.getUserId(), 2);
+    public List<DiaryVO> listRecent() {
+        return mapper.findRecentByUserId(currentUser.getUserId(), 2)
+                .stream()
+                .map(this::toView)
+                .toList();
     }
 
     @Override
-    public PageResult<?> listAll(int page, int size, LocalDate startDate, LocalDate endDate) {
+    public PageResult<DiaryVO> listAll(int page, int size, LocalDate startDate, LocalDate endDate) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
 
@@ -59,16 +63,21 @@ public class DiaryServiceImpl implements DiaryService {
                 : mapper.findPageByUserId(userId, (long) safePage * safeSize, safeSize, start, end);
         int totalPages = (int) ((total + safeSize - 1) / safeSize);
 
-        return new PageResult<>(items, safePage, safeSize, total, totalPages);
+        return new PageResult<>(
+                items.stream().map(this::toView).toList(),
+                safePage,
+                safeSize,
+                total,
+                totalPages);
     }
 
     @Override
-    public Object get(Long id) {
-        return owned(id);
+    public DiaryVO get(Long id) {
+        return toView(owned(id));
     }
 
     @Override
-    public Object create(DiaryRequest request) {
+    public DiaryVO create(DiaryRequest request) {
         User user = users.findById(currentUser.getUserId())
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
         Diary diary = new Diary();
@@ -76,16 +85,16 @@ public class DiaryServiceImpl implements DiaryService {
         diary.setContent(request.getContent());
         diary.setEmotion(request.getEmotion());
         mapper.insert(diary);
-        return diary;
+        return toView(diary);
     }
 
     @Override
-    public Object update(Long id, DiaryRequest request) {
+    public DiaryVO update(Long id, DiaryRequest request) {
         Diary diary = owned(id);
         diary.setContent(request.getContent());
         diary.setEmotion(request.getEmotion());
         mapper.updateById(diary);
-        return diary;
+        return toView(diary);
     }
 
     @Override
@@ -103,7 +112,7 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
-    public List<?> trend(LocalDate startDate, LocalDate endDate) {
+    public List<EmotionTrendPointVO> trend(LocalDate startDate, LocalDate endDate) {
         LocalDate today = LocalDate.now(APP_ZONE);
         LocalDate start = startDate == null ? today.minusDays(30) : startDate;
         LocalDate end = endDate == null ? today : endDate;
@@ -115,9 +124,7 @@ public class DiaryServiceImpl implements DiaryService {
                     LocalDate date = diary.getCreatedAt().atZone(APP_ZONE).toLocalDate();
                     return !date.isBefore(start) && !date.isAfter(end);
                 })
-                .map(diary -> Map.of(
-                        "date", diary.getCreatedAt(),
-                        "emotion", diary.getEmotion().name()))
+                .map(this::toTrendPoint)
                 .toList();
     }
 
@@ -128,5 +135,26 @@ public class DiaryServiceImpl implements DiaryService {
             throw new SecurityException("无权访问该日记");
         }
         return diary;
+    }
+
+    private DiaryVO toView(Diary diary) {
+        DiaryVO view = new DiaryVO();
+        view.setId(diary.getId());
+        view.setUserId(diary.getUserId());
+        view.setContent(diary.getContent());
+        view.setEmotion(emotionName(diary));
+        view.setCreatedAt(diary.getCreatedAt());
+        return view;
+    }
+
+    private EmotionTrendPointVO toTrendPoint(Diary diary) {
+        EmotionTrendPointVO point = new EmotionTrendPointVO();
+        point.setDate(diary.getCreatedAt());
+        point.setEmotion(emotionName(diary));
+        return point;
+    }
+
+    private String emotionName(Diary diary) {
+        return diary.getEmotion() == null ? null : diary.getEmotion().name();
     }
 }
