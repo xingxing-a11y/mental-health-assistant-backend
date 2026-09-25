@@ -506,6 +506,102 @@ mvn test
 5. 验证降级：停掉 Redis，页面仍能正常显示内容（此时走 MySQL），同时后端日志只出现缓存读写失败的 WARN，不影响业务。
 6. 验证失效：修改一篇文章后，对应的列表键与详情键应当消失，下一次查询重新回填。
 
+### Docker Compose 部署
+
+`assistant-backend/docker-compose.yml` 描述单机容器化部署，共五个服务：MySQL、Redis、Chroma、backend、nginx。
+`backend/app.jar` 与 `web/dist` 以 bind mount 挂载，不自建镜像；宿主机只需 Docker 与 Compose 插件，
+不需要在宿主机安装 JDK、MySQL 或 Redis。只有 nginx 映射宿主机端口，其余服务只在 compose 内网互通。
+
+部署目录约定（下文以 `/opt/mindharbor` 为例，compose 内 `./` 相对路径均以 compose 文件所在目录为基准）：
+
+| 路径 | 来源 |
+| --- | --- |
+| `docker-compose.yml` | 仓库 `assistant-backend/docker-compose.yml` |
+| `.env` | 由 `assistant-backend/.env.example` 复制填写，**不提交版本库** |
+| `nginx.conf` | 仓库 `assistant-web/nginx.conf` |
+| `backend/app.jar` | 后端 `mvn -DskipTests package` 产物 |
+| `web/dist/` | 前端 `npm run build` 产物 |
+| `db/` | 仓库 `assistant-backend/src/main/resources/db/`（`schema.sql` 与 `migrations/`） |
+| `data/mysql`、`data/redis`、`data/chroma`、`uploads/` | 运行时生成，**属于必须备份的数据目录** |
+
+初始化顺序：
+
+1. `docker compose up -d mysql redis`，等 `docker compose ps` 中 `mh-mysql` 显示 `healthy`。
+2. 导入基线脚本（在宿主机执行，密码由容器内环境变量提供，不写在命令行里）：
+
+   ```bash
+   docker exec -i mh-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"' < db/schema.sql
+   ```
+
+   `schema.sql` 是完整基线，含全部表与全部列，**全新库只导它即可**；`db/migrations/` 只用于给已存在的旧库做增量升级。
+3. `docker compose up -d` 启动其余服务，`docker compose logs backend` 出现 `Started AssistantApplication in … seconds` 即为就绪。
+
+#### Chroma 向量库首次引导（新环境必做）
+
+`spring.ai.vectorstore.chroma.initialize-schema: true` 在当前依赖版本下**不会真正生效**：
+`ChromaVectorStore.afterPropertiesSet` 依赖 `getCollection` 返回 `null` 来判断"集合不存在"，
+而 `ChromaApi.getCollection` 在集合缺失时直接抛异常，导致其后建租户、建库、建集合的代码无法到达。
+结果是知识库文档的向量化与检索都会以 404 `Collection […] does not exist` 失败，
+而后端对向量库故障一律静默降级，因此**每个新环境都必须手工引导一次**。
+三条命令顺序不可颠倒（库挂在租户下、集合挂在库下）：
+
+```bash
+docker compose exec -T nginx wget -qO- --header="Content-Type: application/json" \
+  --post-data='{"name":"SpringAiTenant"}' "http://chroma:8000/api/v2/tenants"; echo
+
+docker compose exec -T nginx wget -qO- --header="Content-Type: application/json" \
+  --post-data='{"name":"SpringAiDatabase"}' "http://chroma:8000/api/v2/tenants/SpringAiTenant/databases"; echo
+
+docker compose exec -T nginx wget -qO- --header="Content-Type: application/json" \
+  --post-data='{"name":"mental-health-knowledge","metadata":{"hnsw:space":"cosine"}}' \
+  "http://chroma:8000/api/v2/tenants/SpringAiTenant/databases/SpringAiDatabase/collections"; echo
+```
+
+- Spring AI 使用自己的租户与库（`SpringAiTenant` / `SpringAiDatabase`），**不是** Chroma 原生的
+  `default_tenant` / `default_database`；建错位置的表现是报错文案一字不变，仍是 `Collection does not exist`。
+- 租户与库成功时返回 `{}`，集合成功时返回带 `id` 的 JSON；`409` 表示对象已存在，继续下一步即可；
+  `400` 通常表示请求体 JSON 语法有误；`404` 表示租户或库不存在。
+- ⚠️ 集合**必须带 `"metadata":{"hnsw:space":"cosine"}`**。漏掉会退化成 Chroma 默认的 `l2` 空间，
+  而检索按 `score = 1 - distance ≥ 0` 过滤，`l2` 下该条件等价于余弦相似度 ≥ 0.5，会把措辞不同的命中整片滤掉 ——
+  表现为"向量化成功但知识库不起作用"，前后端都不报错、也不打日志。
+- 集合名要与 `spring.ai.vectorstore.chroma.collection-name` 一致（默认 `mental-health-knowledge`）。
+
+验证（全部走容器内网，不依赖宿主机工具）：
+
+```bash
+# 1. 容器是否在提供服务
+docker compose exec -T nginx wget -qO- http://chroma:8000/api/v2/heartbeat; echo
+
+# 2. 集合是否还在（返回带 id 的 JSON）
+docker compose exec -T nginx wget -qO- \
+  "http://chroma:8000/api/v2/tenants/SpringAiTenant/databases/SpringAiDatabase/collections"; echo
+
+# 3. 集合里有多少条向量。计数路由按集合 id 而非集合名；count 数的是分片，不是文档数
+ID=$(docker compose exec -T nginx wget -qO- \
+  "http://chroma:8000/api/v2/tenants/SpringAiTenant/databases/SpringAiDatabase/collections" \
+  | tr -d '\r' | grep -oE '"id":"[^"]+"' | head -1 | cut -d'"' -f4)
+docker compose exec -T nginx wget -qO- \
+  "http://chroma:8000/api/v2/tenants/SpringAiTenant/databases/SpringAiDatabase/collections/$ID/count"; echo
+```
+
+Chroma 的数据只存在于 bind mount 的 `data/chroma`，`restart`、`down`、删除容器重建都不会丢；
+但**删掉该目录或更换机器等于要重跑上面的引导**。集合的向量实体存放在以集合 id 命名的索引目录里，
+`chroma.sqlite3` 只记录"有哪些集合"，因此**不要用手工删除目录的方式删除集合**
+（会留下"名字还在、数据没了"的半坏状态）；要删必须走
+`DELETE /api/v2/tenants/{tenant}/databases/{database}/collections/{collection_name}`，删完目录由 Chroma 自行清理。
+
+#### 镜像版本与中文字体
+
+- `chromadb/chroma` 必须钉具体版本（当前为 `1.0.0`），**不要使用 `latest`**：spring-ai 1.0.0 只兼容 Chroma 1.x，
+  拉到 2.x 会因 API 不兼容直接连不上，且新版可能迁移 `chroma.sqlite3` 结构而无法回退。
+  换版本前先用 `docker tag` 在本地为当前镜像建版本别名，确认远端存在同名 tag 再改 compose，
+  避免镜像被清理后新容器起不来。
+- 会话导出 PDF 的中文字体是三级兜底（`EXPORT_PDF_FONT_PATH` → jar 内 `fonts/` → 系统字体）。
+  Ubuntu 默认不安装 CJK 字体，需要在**宿主机**安装一次：
+  `apt-get install -y --no-install-recommends fonts-noto-cjk`。
+  compose 已将宿主机 `/usr/share/fonts` 以目录级 bind mount 挂进容器，装完**无需重启 backend** 即可生效
+  （字体解析没有负缓存，上一次失败的解析结果不会被记住）。三级全部落空时导出接口返回 400 与"未配置中文字体"。
+
 ### 多实例迁移要求
 
 单实例部署时本地单飞锁足够使用。扩到多实例前必须完成：

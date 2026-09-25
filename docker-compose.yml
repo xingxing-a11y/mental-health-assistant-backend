@@ -1,0 +1,147 @@
+# MindHarbor —— Docker 部署编排
+# 目标机：2 vCPU / 2 GB（实测可用内存 1.6 Gi）
+# 启动：cd /opt/mindharbor && docker compose up -d
+# 状态：docker compose ps
+# 配套文件：nginx.conf 在前端仓库 assistant-web/nginx.conf
+# 部署时两个文件必须放在同一目录（compose 内的 ./ 相对路径以本文件所在目录为基准）
+# 日志：docker compose logs -f backend
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: mh-mysql
+    restart: unless-stopped
+    # 逐项压内存：performance_schema 关掉最省（约 100MB），缓冲池压到 64M
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+      - --performance-schema=OFF
+      - --innodb-buffer-pool-size=64M
+      - --innodb-log-buffer-size=8M
+      - --max-connections=50
+      - --table-open-cache=64
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD 未设置，请在 .env 中填写}
+      MYSQL_DATABASE: mindharbor
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - mh-net
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+
+  redis:
+    image: redis:7-alpine
+    container_name: mh-redis
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "32mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - mh-net
+    deploy:
+      resources:
+        limits:
+          memory: 48M
+
+  backend:
+    image: eclipse-temurin:17-jre-jammy
+    container_name: mh-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # 容器之间用 service 名互相访问，不走宿主机端口
+      DB_URL: jdbc:mysql://mysql:3306/mindharbor?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CHROMA_HOST: http://chroma
+      CHROMA_PORT: "8000"
+      # 头像本地存储目录（对应 application.yml 的 AVATAR_UPLOAD_DIR）
+      AVATAR_UPLOAD_DIR: /app/uploads/avatars
+      # 默认 200 个请求线程，每个线程占栈内存，小内存机器压到 50
+      SERVER_TOMCAT_THREADS_MAX: "50"
+      LANG: C.UTF-8
+      TZ: Asia/Shanghai
+    volumes:
+      - ./backend/app.jar:/app/app.jar:ro
+      - ./uploads:/app/uploads
+      # 宿主机字体只读挂进容器，供导出 PDF 使用
+      - /usr/share/fonts:/usr/share/fonts:ro
+    # 显式钉住堆大小：Spring Boot 默认按物理内存的 1/4 算堆，2G 机器上会给到 500MB
+    command:
+      - java
+      - -Xms160m
+      - -Xmx320m
+      - -Xss512k
+      - -XX:MaxMetaspaceSize=96m
+      - -XX:ReservedCodeCacheSize=64m
+      - -XX:MaxDirectMemorySize=64m
+      - -XX:+UseSerialGC
+      - -Duser.timezone=Asia/Shanghai
+      - -Dfile.encoding=UTF-8
+      - -jar
+      - /app/app.jar
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - mh-net
+    deploy:
+      resources:
+        limits:
+          memory: 640M
+
+  nginx:
+    image: nginx:alpine
+    container_name: mh-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./web/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - mh-net
+    deploy:
+      resources:
+        limits:
+          memory: 48M
+
+  # RAG 向量库。后端对 VectorStore 一律 @Lazy 注入，检索失败只 WARN 降级，
+  # 所以 Chroma 挂了不影响登录与聊天，只是没有知识库上下文。
+  chroma:
+    # ⚠️ 必须钉具体版本，不能用 latest：Chroma 2.x 与 spring-ai 1.0.0 的 API 不兼容，
+    # 且 2.x 会迁移 sqlite3 结构、回退不回去。1.0.0 已确认为当前在跑的真实版本。
+    image: chromadb/chroma:1.0.0
+    container_name: mh-chroma
+    restart: unless-stopped
+    volumes:
+      # ⚠️ 必须挂 /data：Chroma 1.0（2025-03 Rust 重写）起数据目录改成了 /data，
+      # 0.x 时代的 /chroma/chroma 已失效 —— 挂错不会报错，但向量数据全在容器内，重建即丢
+      - ./data/chroma:/data
+    networks:
+      - mh-net
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+
+networks:
+  mh-net:
+    driver: bridge

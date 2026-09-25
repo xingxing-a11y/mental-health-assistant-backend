@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     latest_message_at TIMESTAMP(6),
     context_cleared BOOLEAN NOT NULL DEFAULT FALSE,
     high_risk BOOLEAN NOT NULL DEFAULT FALSE,
+    mode VARCHAR(32) NOT NULL DEFAULT 'COMPANION',
     pinned BOOLEAN NOT NULL DEFAULT FALSE,
     archived BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     role VARCHAR(32) NOT NULL,
     content LONGTEXT NOT NULL,
     created_at TIMESTAMP(6) NOT NULL,
+    favorite BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     KEY idx_chat_messages_session_id (session_id),
     CONSTRAINT fk_chat_messages_session
