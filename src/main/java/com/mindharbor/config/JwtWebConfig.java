@@ -88,6 +88,7 @@ public class JwtWebConfig implements WebMvcConfigurer {
                 return active;
             }
 
+            /** 报错信息格式书写 */
             private void writeError(
                     HttpServletResponse response,
                     int status,

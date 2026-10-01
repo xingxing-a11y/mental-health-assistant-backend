@@ -2,10 +2,13 @@ package com.mindharbor.common.storage;
 
 import com.aliyun.oss.ClientBuilderConfiguration;
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSClient;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.common.comm.SignVersion;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -32,6 +35,10 @@ public class AvatarStorageConfig {
 
     private static final long CONNECTION_TTL_MILLIS = 60000L;
 
+    /** 从 endpoint 提取 region：匹配 oss-<region> 与 oss-<region>-internal 两种标准域名。 */
+    private static final Pattern ENDPOINT_REGION = Pattern.compile(
+            "oss-([a-z0-9]+(?:-[a-z0-9]+)*?)(?:-internal)?\\.aliyuncs\\.com");
+
     @Bean
     @ConditionalOnProperty(prefix = "storage", name = "type", havingValue = "local", matchIfMissing = true)
     public AvatarStorage localAvatarStorage(AvatarStorageProperties properties) {
@@ -51,8 +58,31 @@ public class AvatarStorageConfig {
         configuration.setMaxConnections(MAX_CONNECTIONS);
         configuration.setConnectionTTL(CONNECTION_TTL_MILLIS);
         configuration.setSignatureVersion(SignVersion.V4);
-        return new OSSClientBuilder()
+        OSS client = new OSSClientBuilder()
                 .build(oss.endpoint(), oss.accessKeyId(), oss.accessKeySecret(), configuration);
+        /*
+         * V4 签名的 region 不在 ClientBuilderConfiguration 上（3.18.2 没有该 setter），
+         * 而是客户端实例的 setRegion：不设，OSSV4Signer 取 region 时就是 null，
+         * 签名阶段直接抛 NullPointerException。build 返回的是 OSS 接口，需下转型。
+         */
+        ((OSSClient) client).setRegion(regionFromEndpoint(oss.endpoint()));
+        return client;
+    }
+
+    /**
+     * V4 签名必须带 region：SDK 生成签名密钥时从客户端配置取，缺了会在
+     * OSSV4Signer.getRegion() 处抛 NullPointerException（无法签名却报得像服务端故障）。
+     * 因此这里从 endpoint 推导（标准格式 oss-<region>[.-internal].aliyuncs.com），
+     * 推导不出来就启动即报错，绝不带病运行到第一次请求才炸。
+     */
+    static String regionFromEndpoint(String endpoint) {
+        String normalized = endpoint == null ? "" : endpoint.strip().toLowerCase();
+        Matcher matcher = ENDPOINT_REGION.matcher(normalized);
+        if (!matcher.find()) {
+            throw new IllegalStateException(
+                    "无法从 storage.oss.endpoint 推导 region（V4 签名必需），endpoint 形如 oss-cn-hangzhou.aliyuncs.com，当前值：" + endpoint);
+        }
+        return matcher.group(1);
     }
 
     @Bean

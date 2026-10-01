@@ -47,6 +47,7 @@
   - `oss`：写入阿里云 OSS 的 `storage.oss.bucket`，对象键为 `<storage.oss.key-prefix>/<文件名>`（默认 `avatars/<文件名>`）。bucket 保持私有，因此头像不会暴露成公网链接。
   - `storage.type` 只接受 `local` / `oss`，写成其它值**不会降级也不会静默失败**，启动时直接抛出「storage.type 仅支持 local 或 oss，当前值：…」。
   - `storage.type=oss` 但 OSS 参数不全，启动直接抛出「对象存储配置缺失：…」并列出缺哪几项，避免静默退回本地存储。
+  - OSS 客户端使用 **V4 签名**（2024-12 起新建 bucket 已不支持 V1），region 从 `storage.oss.endpoint` 自动推导（`oss-cn-hangzhou.aliyuncs.com` → `cn-hangzhou`，内网 `-internal` 域名同样支持）；endpoint 不是标准 OSS 域名时启动即抛「无法从 storage.oss.endpoint 推导 region」，不会等到首次请求才失败。
 - 数据库 `users.avatar_url` 只保存相对路径 `/uploads/avatars/<文件名>`；访问地址为 `http://localhost:8080/api/v1/uploads/avatars/<文件名>`，由 `AvatarController` 统一读取，两种存储对外地址完全一致，前端不需要区分。
 - 读头像时文件名必须符合上传接口生成的形态（UUID + `.jpg`/`.png`/`.webp`）；不合法或文件不存在都返回 404，不区分「格式错误」和「不存在」，避免用错误码探测存储布局。
 - **404 是空响应体，不返回 `ApiResponse` JSON**。原因是本接口成功时返回二进制流，而全局异常处理器产出的是 JSON，两者不同源、无法互相序列化；因此 `ResourceNotFoundException` 被在控制器内收敛为无体 404，让浏览器的 `<img>` 标签能直接走 `onerror` 分支。其它接口的 404 仍是 JSON。
@@ -363,7 +364,7 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 ## 数据与代码规范
 
 - MySQL 保存用户、会话、消息、量表、测评、文章和知识库数据。
-- Spring AI 使用正式版依赖，但项目不预设具体 AI 模型。模型地址、API Key 和模型名称由开发者自行配置：`AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL`。`AI_MODEL` 为空时不会强制选择 `gpt-4o-mini`。可通过 `AI_MAX_TOKENS`（默认 512）和 `AI_RETRY_MAX_ATTEMPTS`（默认 1）降低响应延迟。
+- Spring AI 使用正式版依赖，但项目不预设具体 AI 模型。模型地址、API Key 和模型名称由开发者自行配置：`AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL`。`AI_MODEL` 为空时不会强制选择 `gpt-4o-mini`。可通过 `AI_MAX_TOKENS`（默认 2048，上限即单次回复的最大长度）和 `AI_RETRY_MAX_ATTEMPTS`（默认 1）控制响应延迟与成本。
 - 密码使用 BCrypt 存储，不得记录密码、JWT、完整提问或完整 AI 回复。
 - 登录和注册返回 HS256 JWT，密钥通过 `JWT_SECRET` 配置，必须使用至少 32 字节的随机值；过期时间通过 `JWT_EXPIRATION_SECONDS` 配置，生产环境不得使用开发占位密钥。登录 Cookie 的 `Max-Age` 复用同一配置，不再单独维护常量，避免改了一处、另一处仍留旧值。
 - 登录连续失败 5 次后账号锁定 15 分钟；成功登录会清零失败次数。锁定期间接口返回业务错误，前端应提示用户稍后重试。

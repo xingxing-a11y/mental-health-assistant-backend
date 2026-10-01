@@ -45,6 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
         String token = tokenResolver.resolve(request);
+        //todo 48,57,68 处签名验证算了三次
         if (token != null && !token.isBlank() && tokenService.isValid(token)) {
             authenticate(request, token);
         }
@@ -55,13 +56,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void authenticate(HttpServletRequest request, String token) {
         try {
             Long userId = tokenService.getUserId(token);
+            //获取账号状态
             boolean active = userStatusService.isActive(userId);
+            //将状态写进请求中
             request.setAttribute(ACTIVE_ACCOUNT_ATTRIBUTE, active);
+            //判断账号是否被禁用，被禁用则将jwt令牌进行清空
             if (!active) {
                 SecurityContextHolder.clearContext();
                 return;
             }
             SecurityContext context = SecurityContextHolder.createEmptyContext();
+            //这个null不能省
             context.setAuthentication(new UsernamePasswordAuthenticationToken(
                     userId,
                     null,
@@ -77,6 +82,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (role == null || role.isBlank()) {
             return List.of();
         }
+        //在role前加ROLE_，可以让hasRole识别
         return List.of(new SimpleGrantedAuthority(ROLE_PREFIX + role));
     }
 }

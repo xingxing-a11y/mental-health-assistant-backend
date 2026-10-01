@@ -86,6 +86,42 @@ class AvatarStorageWiringTest {
         assertTrue(message.contains("osss"), "应回显非法取值便于排查，实际：" + message);
     }
 
+    @Test
+    @DisplayName("endpoint 推导不出 region 时启动即报错（V4 签名必需，不能等到首次请求才炸）")
+    void unparseableEndpointRegionFailsFast() {
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("storage.type", "oss");
+        properties.put("storage.oss.endpoint", "https://storage.example.com");
+        properties.put("storage.oss.bucket", "mindharbor-test");
+        properties.put("storage.oss.access-key-id", "test-access-key");
+        properties.put("storage.oss.access-key-secret", "test-access-secret");
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            try (AnnotationConfigApplicationContext context = context(properties)) {
+                context.getBean(OSS.class);
+            }
+        });
+
+        String message = rootMessage(exception);
+        assertTrue(message.contains("region"),
+                "应说明失败与 region 推导有关。实际：" + message);
+        assertTrue(message.contains("https://storage.example.com"),
+                "应回显当前 endpoint 便于定位。实际：" + message);
+    }
+
+    @Test
+    @DisplayName("regionFromEndpoint：标准域名、内网域名取同一 region，非 OSS 域名报错")
+    void regionFromEndpointCoversStandardAndInternal() {
+        assertEquals("cn-hangzhou", AvatarStorageConfig.regionFromEndpoint("https://oss-cn-hangzhou.aliyuncs.com"));
+        assertEquals("cn-hangzhou",
+                AvatarStorageConfig.regionFromEndpoint("https://oss-cn-hangzhou-internal.aliyuncs.com"));
+        assertEquals("cn-beijing", AvatarStorageConfig.regionFromEndpoint("oss-cn-beijing.aliyuncs.com"));
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> AvatarStorageConfig.regionFromEndpoint("https://storage.example.com"));
+        assertTrue(exception.getMessage().contains("region"), "报错应点明 region 推导失败");
+    }
+
     private static AnnotationConfigApplicationContext context(Map<String, Object> properties) {
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.getEnvironment().getPropertySources().addLast(new MapPropertySource("test", properties));

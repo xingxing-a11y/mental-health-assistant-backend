@@ -44,7 +44,7 @@ spring:
       chat:
         options:
           model: ${AI_MODEL:}
-          max-tokens: ${AI_MAX_TOKENS:512}
+          max-tokens: ${AI_MAX_TOKENS:2048}
       embedding:
         options:
           model: ${AI_EMBEDDING_MODEL:}
@@ -100,7 +100,7 @@ app:
 # 上传文件存储：type=local 写本地磁盘（默认），type=oss 写阿里云 OSS。
 # OSS 模式保持 bucket 私有，头像由后端代理读取，因此对外地址与本地模式完全一致；密钥只从环境变量注入。
 storage:
-  type: ${STORAGE_TYPE:local}
+  type: ${STORAGE_TYPE:oss}
   local:
     directory: ${AVATAR_UPLOAD_DIR:./uploads/avatars}
   oss:

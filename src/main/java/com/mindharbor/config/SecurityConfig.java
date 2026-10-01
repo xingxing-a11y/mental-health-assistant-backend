@@ -108,6 +108,7 @@ public class SecurityConfig {
                 writeJson(response, HttpServletResponse.SC_FORBIDDEN, "无权限访问该资源");
     }
 
+    /** 返回的json格式 */
     private void writeJson(
             HttpServletResponse response,
             int status,
