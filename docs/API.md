@@ -373,6 +373,11 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 - Controller 只接收参数、记录日志并封装响应，不直接调用 Mapper；Mapper 只声明数据访问，业务判断统一放在 Service。
 - 构造器注入的依赖字段名必须等于其类型简单名的首字母小写形式：`DiaryMapper` → `diaryMapper`、`AiConversationService` → `aiConversationService`、`AdminOperationLogService` → `adminOperationLogService`。禁止用 `mapper`、`service`、`users`、`aiService` 这类缩写名或泛名，读代码时应当从字段名直接看出类型。类型名为全大写缩略词时整体小写（`OSS` → `oss`）；形如 `JWTVerifier` 的前缀缩略词连写小写（`jwtVerifier`）。构造器参数名与字段名保持一致。
 - 上一条不适用于：`static final` 常量（保持大写加下划线，日志器统一叫 `log`）、由配置值派生且类型名不具辨识度的字段（如 `String bucket`、`Path directory` 保留语义名）、以及构造函数内 `new` 出来的内部状态字段。
+- 类注释必须写：用 `/** */` 一句话讲清这个类负责什么、边界在哪。
+- 方法注释只写签名读不出来的信息（边界值、口径、副作用、为什么必须这么写）；签名已说清的直接不写。**「签名」含方法名、参数类型、返回类型与注解**——因此「这个方法做什么」若连名字都没表达出来，先改名字（重构会同步所有调用点），改不动或名字已是最清楚时才写注释。注释不参与构建校验（`pom.xml` 未引入 javadoc、checkstyle、spotless 插件），参数改名不会报错，也因此更容易过时。
+- 不写 `@param`、`@return` 占位标签：只有名字没有说明的标签等于把签名抄了一遍，信息量为 0，还留下"改参数名要同步改注释"的维护点。
+- 同一方法的注释只写在 Service 接口上，`ServiceImpl` 与 Controller 不重复抄写，实现类需要时用 `{@inheritDoc}` 继承；类 Javadoc 必须写在所有注解之前，否则 IDE 的 `Ctrl+Q` 看不到。
+- 方法体内的 `//` 只写「意图与外观不符」的地方：看着能删、能换顺序、能换写法但其实不能（空 `catch` 兜底、条件更新影响 0 行、有时序要求的前后两步），以及正则、位运算、特殊 API 语义这类改名也表达不了的代码。**一段代码只是「难读懂」时先重构（换命名、拆方法、提前 return、消除嵌套），不要用注释给坏结构化妆。**
 - 异常分层：`ResourceNotFoundException` 表示资源不存在（404），`SecurityException` 表示越权访问（403），`IllegalArgumentException` 表示参数或业务校验失败（400）；禁止用 `IllegalArgumentException` 表达资源不存在。
 - `GlobalExceptionHandler` 统一处理 400/403/404/405/409/429/500，Controller 与 Service 不自行拼装错误响应结构；`401` 由过滤器层的 `SecurityConfig` 直接写出，不经过本处理器。
 - 后端按模块拆分 `controller`、`service`、`service.impl`、`mapper`、`dto`、`vo`、`entity`。

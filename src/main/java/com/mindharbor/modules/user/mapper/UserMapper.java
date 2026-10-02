@@ -12,6 +12,7 @@ import java.util.Optional;
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
 
+    /** 按主键查用户，状态校验与各模块的关联展示共用；每个请求都会命中，未加缓存。 */
     @Select("SELECT * FROM users WHERE id = #{id} LIMIT 1")
     Optional<User> findById(Long id);
 
