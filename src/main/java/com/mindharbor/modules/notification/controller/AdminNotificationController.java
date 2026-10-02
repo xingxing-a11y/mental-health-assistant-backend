@@ -1,10 +1,10 @@
 package com.mindharbor.modules.notification.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.notification.dto.NotificationPushRequest;
 import com.mindharbor.modules.notification.service.NotificationService;
 import com.mindharbor.modules.notification.vo.NotificationVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

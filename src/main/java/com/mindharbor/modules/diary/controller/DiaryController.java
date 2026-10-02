@@ -1,12 +1,12 @@
 package com.mindharbor.modules.diary.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.diary.dto.DiaryRequest;
 import com.mindharbor.modules.diary.service.DiaryService;
 import com.mindharbor.modules.diary.vo.DiaryAnalysisVO;
 import com.mindharbor.modules.diary.vo.DiaryVO;
 import com.mindharbor.modules.diary.vo.EmotionTrendPointVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;

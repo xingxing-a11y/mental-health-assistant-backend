@@ -1,9 +1,9 @@
 package com.mindharbor.modules.diary.service;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.diary.dto.DiaryRequest;
 import com.mindharbor.modules.diary.vo.DiaryVO;
 import com.mindharbor.modules.diary.vo.EmotionTrendPointVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import java.time.LocalDate;
 import java.util.List;
 

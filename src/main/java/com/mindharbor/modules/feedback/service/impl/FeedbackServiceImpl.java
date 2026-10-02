@@ -1,5 +1,6 @@
 package com.mindharbor.modules.feedback.service.impl;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.common.ResourceNotFoundException;
 import com.mindharbor.modules.admin.entity.AdminOperationLog;
 import com.mindharbor.modules.admin.service.AdminOperationLogService;
@@ -9,7 +10,6 @@ import com.mindharbor.modules.feedback.entity.Feedback;
 import com.mindharbor.modules.feedback.mapper.FeedbackMapper;
 import com.mindharbor.modules.feedback.service.FeedbackService;
 import com.mindharbor.modules.feedback.vo.FeedbackVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
 import java.util.List;

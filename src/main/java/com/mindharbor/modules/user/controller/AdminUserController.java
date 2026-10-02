@@ -1,9 +1,9 @@
 package com.mindharbor.modules.user.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.user.dto.UserStatusRequest;
 import com.mindharbor.modules.user.service.UserService;
-import com.mindharbor.modules.user.vo.PageResult;
 import com.mindharbor.modules.user.vo.UserVO;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;

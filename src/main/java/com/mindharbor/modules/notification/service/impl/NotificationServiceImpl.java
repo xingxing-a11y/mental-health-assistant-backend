@@ -1,5 +1,6 @@
 package com.mindharbor.modules.notification.service.impl;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.common.ResourceNotFoundException;
 import com.mindharbor.modules.admin.entity.AdminOperationLog;
 import com.mindharbor.modules.admin.service.AdminOperationLogService;
@@ -10,7 +11,6 @@ import com.mindharbor.modules.notification.mapper.NotificationReadMapper;
 import com.mindharbor.modules.notification.service.NotificationService;
 import com.mindharbor.modules.notification.vo.NotificationVO;
 import com.mindharbor.modules.user.mapper.UserMapper;
-import com.mindharbor.modules.user.vo.PageResult;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;

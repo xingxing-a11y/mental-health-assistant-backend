@@ -1,6 +1,7 @@
 package com.mindharbor.modules.relax.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.relax.dto.RelaxRecordRequest;
 import com.mindharbor.modules.relax.dto.StressLogRequest;
 import com.mindharbor.modules.relax.service.RelaxService;
@@ -9,7 +10,6 @@ import com.mindharbor.modules.relax.vo.RelaxOverviewVO;
 import com.mindharbor.modules.relax.vo.RelaxRecordVO;
 import com.mindharbor.modules.relax.vo.StressLogVO;
 import com.mindharbor.modules.relax.vo.StressTrendPointVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.slf4j.Logger;

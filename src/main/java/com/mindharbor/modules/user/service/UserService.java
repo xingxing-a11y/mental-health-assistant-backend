@@ -1,5 +1,6 @@
 package com.mindharbor.modules.user.service;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.common.storage.AvatarContent;
 import com.mindharbor.modules.user.dto.LoginRequest;
 import com.mindharbor.modules.user.dto.RegisterRequest;
@@ -7,7 +8,6 @@ import com.mindharbor.modules.user.dto.PasswordUpdateRequest;
 import com.mindharbor.modules.user.dto.ProfileUpdateRequest;
 import com.mindharbor.modules.user.dto.UserStatusRequest;
 import com.mindharbor.modules.user.vo.UserVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 

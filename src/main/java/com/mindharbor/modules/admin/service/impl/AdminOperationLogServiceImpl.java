@@ -1,12 +1,12 @@
 package com.mindharbor.modules.admin.service.impl;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.admin.entity.AdminOperationLog;
 import com.mindharbor.modules.admin.mapper.AdminOperationLogMapper;
 import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.admin.vo.AdminOperationLogVO;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
-import com.mindharbor.modules.user.vo.PageResult;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
 import java.time.LocalDate;

@@ -1,8 +1,8 @@
 package com.mindharbor.modules.admin.service;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.admin.entity.AdminOperationLog;
 import com.mindharbor.modules.admin.vo.AdminOperationLogVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import java.time.LocalDate;
 
 /** 管理员操作审计业务接口：显式记录，不使用隐式切面。 */

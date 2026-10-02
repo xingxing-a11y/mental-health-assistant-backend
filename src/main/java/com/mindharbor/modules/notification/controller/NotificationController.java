@@ -1,10 +1,10 @@
 package com.mindharbor.modules.notification.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.notification.service.NotificationService;
 import com.mindharbor.modules.notification.vo.NotificationVO;
 import com.mindharbor.modules.notification.vo.UnreadCountVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -2,6 +2,7 @@ package com.mindharbor.modules.user.service.impl;
 
 import com.mindharbor.common.ConflictException;
 import com.mindharbor.common.ResourceNotFoundException;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.common.storage.AvatarContent;
 import com.mindharbor.common.storage.AvatarStorage;
 import com.mindharbor.common.storage.CountingInputStream;
@@ -24,7 +25,6 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.time.Instant;
-import com.mindharbor.modules.user.vo.PageResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.mindharbor.security.CurrentUserProvider;
 import org.springframework.dao.DuplicateKeyException;

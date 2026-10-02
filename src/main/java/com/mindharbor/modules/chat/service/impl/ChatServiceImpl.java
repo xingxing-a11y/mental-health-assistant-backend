@@ -1,6 +1,7 @@
 package com.mindharbor.modules.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.common.ResourceNotFoundException;
 import com.mindharbor.modules.chat.dto.ChatMessageRequest;
 import com.mindharbor.modules.chat.dto.ChatSettingsRequest;
@@ -17,7 +18,6 @@ import com.mindharbor.modules.chat.vo.FavoriteMessageVO;
 import com.mindharbor.modules.chat.vo.SensitiveCheckVO;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
-import com.mindharbor.modules.user.vo.PageResult;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
 import java.util.List;

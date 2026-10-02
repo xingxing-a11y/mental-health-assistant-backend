@@ -1,10 +1,10 @@
 package com.mindharbor.modules.feedback.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.feedback.dto.FeedbackHandleRequest;
 import com.mindharbor.modules.feedback.service.FeedbackService;
 import com.mindharbor.modules.feedback.vo.FeedbackVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

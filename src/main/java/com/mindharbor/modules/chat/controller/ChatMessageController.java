@@ -1,10 +1,10 @@
 package com.mindharbor.modules.chat.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.chat.dto.FavoriteRequest;
 import com.mindharbor.modules.chat.service.ChatService;
 import com.mindharbor.modules.chat.vo.FavoriteMessageVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

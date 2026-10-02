@@ -1,5 +1,6 @@
 package com.mindharbor.modules.diary.service.impl;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.common.ResourceNotFoundException;
 import com.mindharbor.modules.chat.service.AiConversationService;
 import com.mindharbor.modules.diary.dto.DiaryRequest;
@@ -10,7 +11,6 @@ import com.mindharbor.modules.diary.vo.DiaryVO;
 import com.mindharbor.modules.diary.vo.EmotionTrendPointVO;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
-import com.mindharbor.modules.user.vo.PageResult;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

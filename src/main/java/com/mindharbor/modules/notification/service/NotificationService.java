@@ -1,8 +1,8 @@
 package com.mindharbor.modules.notification.service;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.notification.dto.NotificationPushRequest;
 import com.mindharbor.modules.notification.vo.NotificationVO;
-import com.mindharbor.modules.user.vo.PageResult;
 
 /** 通知业务接口：用户侧读取个人可见通知，管理员侧负责推送与撤回。 */
 public interface NotificationService {

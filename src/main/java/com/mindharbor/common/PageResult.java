@@ -1,4 +1,4 @@
-package com.mindharbor.modules.user.vo;
+package com.mindharbor.common;
 
 import java.util.List;
 import lombok.AllArgsConstructor;

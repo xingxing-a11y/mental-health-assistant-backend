@@ -1,12 +1,12 @@
 package com.mindharbor.modules.chat.service;
 
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.chat.dto.ChatMessageRequest;
 import com.mindharbor.modules.chat.dto.ChatSettingsRequest;
 import com.mindharbor.modules.chat.dto.CreateSessionRequest;
 import com.mindharbor.modules.chat.entity.ChatMessage;
 import com.mindharbor.modules.chat.vo.ChatSessionVO;
 import com.mindharbor.modules.chat.vo.FavoriteMessageVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import java.util.List;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 

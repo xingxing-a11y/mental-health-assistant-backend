@@ -1,9 +1,9 @@
 package com.mindharbor.modules.admin.controller;
 
 import com.mindharbor.common.ApiResponse;
+import com.mindharbor.common.PageResult;
 import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.admin.vo.AdminOperationLogVO;
-import com.mindharbor.modules.user.vo.PageResult;
 import java.time.LocalDate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
