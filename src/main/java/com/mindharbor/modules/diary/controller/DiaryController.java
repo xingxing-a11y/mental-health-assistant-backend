@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/** 情绪日记与情绪趋势接口，全部按当前登录用户隔离；单条操作越权返回 403。 */
 @RestController
 public class DiaryController {
 
@@ -28,15 +29,13 @@ public class DiaryController {
         this.diaryService = diaryService;
     }
 
-    /**
-     * 查询最近 2 条情绪日记
-     * @return
-     */
+    /** 最近 2 条，供首页情绪卡片。 */
     @GetMapping("/diaries/recent")
     public ApiResponse<List<DiaryVO>> listRecent() {
         return ApiResponse.ok(diaryService.listRecent());
     }
 
+    /** 分页查询，起止日期含首尾两天，size 超过 50 按 50 处理。 */
     @GetMapping("/diaries")
     public ApiResponse<PageResult<DiaryVO>> list(
             @RequestParam(name = "page", defaultValue = "0") int page,
@@ -72,11 +71,13 @@ public class DiaryController {
         return ApiResponse.ok(null);
     }
 
+    /** 调用 AI 生成调节建议，不做医学诊断，耗时明显长于其他接口。 */
     @PostMapping("/diaries/{diaryId}/analysis")
     public ApiResponse<DiaryAnalysisVO> analyze(@PathVariable Long diaryId) {
         return ApiResponse.ok(new DiaryAnalysisVO(diaryService.analyze(diaryId)));
     }
 
+    /** 缺省返回最近 30 天，起止日期含首尾两天。 */
     @GetMapping("/emotions/trend")
     public ApiResponse<List<EmotionTrendPointVO>> trend(
             @RequestParam(name = "startDate", required = false) LocalDate startDate,

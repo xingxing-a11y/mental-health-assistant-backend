@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/** 情绪日记实体，emotion 以枚举名落库。 */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,6 +30,7 @@ public class Diary {
 
     private Instant createdAt = Instant.now();
 
+    /** 情绪标签，前端提交与展示都用枚举名。 */
     public enum Emotion {
         HAPPY, CALM, STRESSED, ANXIOUS, LOW
     }

@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/** 新建与编辑情绪日记的请求体，两个字段都必填。 */
 @Getter
 @Setter
 @NoArgsConstructor

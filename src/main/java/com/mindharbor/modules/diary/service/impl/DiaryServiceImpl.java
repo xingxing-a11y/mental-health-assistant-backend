@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
+/** 情绪日记业务实现：归属校验与日期区间口径都在 service 决定，mapper 只做数据访问。 */
 @Service
 public class DiaryServiceImpl implements DiaryService {
 
@@ -72,11 +73,6 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
-    public DiaryVO get(Long id) {
-        return toView(owned(id));
-    }
-
-    @Override
     public DiaryVO create(DiaryRequest request) {
         User user = userMapper.findById(currentUserProvider.getUserId())
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
@@ -86,6 +82,11 @@ public class DiaryServiceImpl implements DiaryService {
         diary.setEmotion(request.getEmotion());
         diaryMapper.insert(diary);
         return toView(diary);
+    }
+
+    @Override
+    public DiaryVO get(Long id) {
+        return toView(owned(id));
     }
 
     @Override
@@ -128,6 +129,7 @@ public class DiaryServiceImpl implements DiaryService {
                 .toList();
     }
 
+    /** 取单条并校验归属：查不到抛 404，非本人抛 403。 */
     private Diary owned(Long id) {
         Diary diary = diaryMapper.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("日记不存在"));
@@ -137,6 +139,7 @@ public class DiaryServiceImpl implements DiaryService {
         return diary;
     }
 
+    /** 将diary对象封装为DiaryVO返回 */
     private DiaryVO toView(Diary diary) {
         DiaryVO view = new DiaryVO();
         view.setId(diary.getId());
@@ -147,6 +150,7 @@ public class DiaryServiceImpl implements DiaryService {
         return view;
     }
 
+    /** 将diary对象封装为EmotionTrendPointVO返回 */
     private EmotionTrendPointVO toTrendPoint(Diary diary) {
         EmotionTrendPointVO point = new EmotionTrendPointVO();
         point.setDate(diary.getCreatedAt());

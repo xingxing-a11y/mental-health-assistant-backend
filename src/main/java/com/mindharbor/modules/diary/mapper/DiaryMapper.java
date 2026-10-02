@@ -20,6 +20,7 @@ public interface DiaryMapper extends BaseMapper<Diary> {
             @Param("userId") Long userId,
             @Param("limit") int limit);
 
+    /** 与 countByUserId 共用 dateFilter 片段，保证分页结果与总数口径一致。 */
     List<Diary> findPageByUserId(
             @Param("userId") Long userId,
             @Param("offset") long offset,
