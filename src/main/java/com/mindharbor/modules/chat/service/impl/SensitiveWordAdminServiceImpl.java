@@ -14,7 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.mindharbor.common.cache.CacheProperties;
-import com.mindharbor.modules.chat.vo.SensitiveWordCacheDTO;
+import com.mindharbor.modules.chat.cache.SensitiveWordCacheEntry;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService {
 
-    private static final TypeReference<List<SensitiveWordCacheDTO>> ALL_CACHE_TYPE =
+    private static final TypeReference<List<SensitiveWordCacheEntry>> ALL_CACHE_TYPE =
             new TypeReference<>() { };
 
     private final SensitiveWordMapper sensitiveWordMapper;
@@ -56,16 +56,16 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
 
     /** 读取完整词库缓存：未命中或缓存的 JSON 已损坏时返回 null，交给单飞回源决定是否查库。 */
     private List<SensitiveWord> readAllCache() {
-        List<SensitiveWordCacheDTO> cached =
+        List<SensitiveWordCacheEntry> cached =
                 cacheService.get(CacheKeys.SENSITIVE_WORD_ALL, ALL_CACHE_TYPE);
-        return cached == null ? null : cached.stream().map(SensitiveWordCacheDTO::toEntity).toList();
+        return cached == null ? null : cached.stream().map(SensitiveWordCacheEntry::toEntity).toList();
     }
 
     /** 回源完整词库并回填缓存。 */
     private List<SensitiveWord> loadAllWordsFromDatabase() {
         List<SensitiveWord> loaded = sensitiveWordMapper.findAll();
         cacheService.put(CacheKeys.SENSITIVE_WORD_ALL,
-                loaded.stream().map(SensitiveWordCacheDTO::from).toList(),
+                loaded.stream().map(SensitiveWordCacheEntry::from).toList(),
                 cacheProperties.sensitiveWord().ttlSeconds(),
                 cacheProperties.sensitiveWord().jitterSeconds());
         return loaded;

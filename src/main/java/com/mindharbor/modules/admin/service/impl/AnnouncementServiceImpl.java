@@ -12,7 +12,7 @@ import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.admin.service.AnnouncementService;
 import java.util.List;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.mindharbor.modules.admin.vo.AnnouncementCacheDTO;
+import com.mindharbor.modules.admin.cache.AnnouncementCacheEntry;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AnnouncementServiceImpl implements AnnouncementService {
 
-    private static final TypeReference<List<AnnouncementCacheDTO>> LIST_TYPE = new TypeReference<>() { };
+    private static final TypeReference<List<AnnouncementCacheEntry>> LIST_TYPE = new TypeReference<>() { };
 
     private final AnnouncementMapper announcementMapper;
 
@@ -48,7 +48,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         return cacheService.loadWithSingleFlight(CacheKeys.ANNOUNCEMENT_LIST, this::readListCache, () -> {
             List<Announcement> announcements = announcementMapper.findAllByOrderByCreatedAtDesc();
             cacheService.put(CacheKeys.ANNOUNCEMENT_LIST,
-                    announcements.stream().map(AnnouncementCacheDTO::from).toList(),
+                    announcements.stream().map(AnnouncementCacheEntry::from).toList(),
                     cacheProperties.announcement().ttlSeconds(),
                     cacheProperties.announcement().jitterSeconds());
             return announcements;
@@ -57,8 +57,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
     /** 读取列表缓存：未命中或缓存的 JSON 已损坏时返回 null，交给单飞回源决定是否查库。 */
     private List<Announcement> readListCache() {
-        List<AnnouncementCacheDTO> cached = cacheService.get(CacheKeys.ANNOUNCEMENT_LIST, LIST_TYPE);
-        return cached == null ? null : cached.stream().map(AnnouncementCacheDTO::toEntity).toList();
+        List<AnnouncementCacheEntry> cached = cacheService.get(CacheKeys.ANNOUNCEMENT_LIST, LIST_TYPE);
+        return cached == null ? null : cached.stream().map(AnnouncementCacheEntry::toEntity).toList();
     }
 
     @Override

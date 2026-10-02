@@ -7,11 +7,11 @@ import com.mindharbor.common.cache.CacheProperties;
 import com.mindharbor.common.cache.CacheService;
 import com.mindharbor.modules.admin.entity.AdminOperationLog;
 import com.mindharbor.modules.admin.service.AdminOperationLogService;
+import com.mindharbor.modules.article.cache.ArticleCacheEntry;
 import com.mindharbor.modules.article.dto.ArticleRequest;
 import com.mindharbor.modules.article.entity.Article;
 import com.mindharbor.modules.article.mapper.ArticleMapper;
 import com.mindharbor.modules.article.service.ArticleService;
-import com.mindharbor.modules.article.vo.ArticleCacheDTO;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.security.CurrentUserProvider;
@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ArticleServiceImpl implements ArticleService {
 
-    private static final TypeReference<List<ArticleCacheDTO>> LIST_TYPE = new TypeReference<>() { };
+    private static final TypeReference<List<ArticleCacheEntry>> LIST_TYPE = new TypeReference<>() { };
 
     private final ArticleMapper articleMapper;
     private final UserMapper userMapper;
@@ -55,7 +55,7 @@ public class ArticleServiceImpl implements ArticleService {
         return cacheService.loadWithSingleFlight(CacheKeys.ARTICLE_LIST, this::readListCache, () -> {
             // 与关键词搜索、管理端列表保持同样的排序，避免缓存重建后顺序变化。
             List<Article> articles = articleMapper.findAllByOrderByUpdatedAtDesc();
-            cacheService.put(CacheKeys.ARTICLE_LIST, articles.stream().map(ArticleCacheDTO::from).toList(),
+            cacheService.put(CacheKeys.ARTICLE_LIST, articles.stream().map(ArticleCacheEntry::from).toList(),
                     cacheProperties.article().ttlSeconds(), cacheProperties.article().jitterSeconds());
             return articles;
         });
@@ -63,8 +63,8 @@ public class ArticleServiceImpl implements ArticleService {
 
     /** 读取列表缓存：未命中或缓存的 JSON 已损坏时返回 null，交给单飞回源决定是否查库。 */
     private List<Article> readListCache() {
-        List<ArticleCacheDTO> cached = cacheService.get(CacheKeys.ARTICLE_LIST, LIST_TYPE);
-        return cached == null ? null : cached.stream().map(ArticleCacheDTO::toEntity).toList();
+        List<ArticleCacheEntry> cached = cacheService.get(CacheKeys.ARTICLE_LIST, LIST_TYPE);
+        return cached == null ? null : cached.stream().map(ArticleCacheEntry::toEntity).toList();
     }
 
     @Override
@@ -95,7 +95,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     /** 读取详情缓存；不存在的文章由空缓存键单独判断，不写入这里。 */
     private Article readDetailCache(String detailKey) {
-        ArticleCacheDTO cached = cacheService.get(detailKey, ArticleCacheDTO.class);
+        ArticleCacheEntry cached = cacheService.get(detailKey, ArticleCacheEntry.class);
         return cached == null ? null : cached.toEntity();
     }
 
@@ -111,7 +111,7 @@ public class ArticleServiceImpl implements ArticleService {
                     cacheProperties.article().missingJitterSeconds());
             throw new ResourceNotFoundException("文章不存在");
         }
-        cacheService.put(detailKey, ArticleCacheDTO.from(article),
+        cacheService.put(detailKey, ArticleCacheEntry.from(article),
                 cacheProperties.article().ttlSeconds(), cacheProperties.article().jitterSeconds());
         return article;
     }

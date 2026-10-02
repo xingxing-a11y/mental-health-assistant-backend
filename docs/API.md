@@ -368,7 +368,7 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 - 密码使用 BCrypt 存储，不得记录密码、JWT、完整提问或完整 AI 回复。
 - 登录和注册返回 HS256 JWT，密钥通过 `JWT_SECRET` 配置，必须使用至少 32 字节的随机值；过期时间通过 `JWT_EXPIRATION_SECONDS` 配置，生产环境不得使用开发占位密钥。登录 Cookie 的 `Max-Age` 复用同一配置，不再单独维护常量，避免改了一处、另一处仍留旧值。
 - 登录连续失败 5 次后账号锁定 15 分钟；成功登录会清零失败次数。锁定期间接口返回业务错误，前端应提示用户稍后重试。
-- DTO、VO 只声明数据字段，使用 Lombok，不使用 Java `record`，不写 `from` 或业务方法。
+- DTO、VO 只声明数据字段，使用 Lombok，不使用 Java `record`，不写 `from` 或业务方法。`cache` 包下的 `*CacheEntry` 是例外：它刻意用 `record`（不可变、字段清单显式），并带 `from` / `toEntity` 在实体与缓存快照之间互转。
 - Entity 使用 Lombok 生成访问器，业务逻辑放在 Service。
 - Controller 只接收参数、记录日志并封装响应，不直接调用 Mapper；Mapper 只声明数据访问，业务判断统一放在 Service。
 - 构造器注入的依赖字段名必须等于其类型简单名的首字母小写形式：`DiaryMapper` → `diaryMapper`、`AiConversationService` → `aiConversationService`、`AdminOperationLogService` → `adminOperationLogService`。禁止用 `mapper`、`service`、`users`、`aiService` 这类缩写名或泛名，读代码时应当从字段名直接看出类型。类型名为全大写缩略词时整体小写（`OSS` → `oss`）；形如 `JWTVerifier` 的前缀缩略词连写小写（`jwtVerifier`）。构造器参数名与字段名保持一致。
@@ -380,7 +380,7 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 - 方法体内的 `//` 只写「意图与外观不符」的地方：看着能删、能换顺序、能换写法但其实不能（空 `catch` 兜底、条件更新影响 0 行、有时序要求的前后两步），以及正则、位运算、特殊 API 语义这类改名也表达不了的代码。**一段代码只是「难读懂」时先重构（换命名、拆方法、提前 return、消除嵌套），不要用注释给坏结构化妆。**
 - 异常分层：`ResourceNotFoundException` 表示资源不存在（404），`SecurityException` 表示越权访问（403），`IllegalArgumentException` 表示参数或业务校验失败（400）；禁止用 `IllegalArgumentException` 表达资源不存在。
 - `GlobalExceptionHandler` 统一处理 400/403/404/405/409/429/500，Controller 与 Service 不自行拼装错误响应结构；`401` 由过滤器层的 `SecurityConfig` 直接写出，不经过本处理器。
-- 后端按模块拆分 `controller`、`service`、`service.impl`、`mapper`、`dto`、`vo`、`entity`。
+- 后端按模块拆分 `controller`、`service`、`service.impl`、`mapper`、`dto`、`vo`、`entity`，并按需增设 `job`（定时任务）、`cache`（缓存快照）。
 - Service 的返回值必须使用具体类型或 `vo` 包下的 VO，禁止返回 `Object`、`Map` 或 `List<?>`；Map 只允许在方法内部作为临时结构使用。
 - 一个方法内包含多次写库时必须加 `@Transactional`（例如覆盖式维护量表题目），保证中断时不会留下半成品数据。
 - 删除存在关联业务数据的主记录时必须先校验并返回明确的业务提示（`400`），不允许把数据库外键错误直接抛给用户。
@@ -470,14 +470,15 @@ mvn test
 
 | 键 | 内容 | TTL | 失效时机 |
 | --- | --- | --- | --- |
-| `mindharbor:cache:article:list` | 科普文章列表 DTO | 1 小时 + 0～10 分钟随机偏移 | 文章新增、修改、删除提交后删除 |
-| `mindharbor:cache:article:{id}` | 科普文章详情 DTO | 1 小时 + 0～10 分钟随机偏移 | 文章修改、删除提交后删除 |
+| `mindharbor:cache:article:list` | 科普文章列表快照 | 1 小时 + 0～10 分钟随机偏移 | 文章新增、修改、删除提交后删除 |
+| `mindharbor:cache:article:{id}` | 科普文章详情快照 | 1 小时 + 0～10 分钟随机偏移 | 文章修改、删除提交后删除 |
 | `mindharbor:cache:article:missing:{id}` | 空缓存，表示文章不存在 | 5 分钟 + 0～1 分钟随机偏移 | 文章新增、删除提交后尝试删除，键不存在属正常情况 |
-| `mindharbor:cache:announcement:list` | 系统公告列表 DTO | 1 小时 + 0～10 分钟随机偏移 | 公告新增、修改、删除提交后删除 |
+| `mindharbor:cache:announcement:list` | 系统公告列表快照 | 1 小时 + 0～10 分钟随机偏移 | 公告新增、修改、删除提交后删除 |
 | `mindharbor:cache:sensitive-word:enabled` | 启用中的敏感词 | 20 分钟 + 0～5 分钟随机偏移 | 敏感词新增、修改、删除提交后删除 |
 | `mindharbor:cache:sensitive-word:all` | 完整敏感词词库 | 20 分钟 + 0～5 分钟随机偏移 | 敏感词新增、修改、删除提交后删除 |
 
-- 缓存只保存专用的 `*CacheDTO`，不直接缓存 MyBatis 实体，实体字段变化不会让旧缓存无法反序列化。
+- 缓存只保存专用的 `*CacheEntry`，放在所属模块的 `cache` 包下，不直接缓存 MyBatis 实体，实体字段变化不会让旧缓存无法反序列化。
+- 缓存快照必须留在所属模块内：它的 `from` / `toEntity` 要引用本模块实体，放进 `common` 会让 `common` 反向依赖 `modules`。
 - 关键词搜索不缓存，避免为每种组合生成缓存键。
 - 空缓存只用于文章详情，列表不写空缓存。
 - TTL 带随机偏移，避免大量键在同一时刻集中失效造成缓存雪崩。

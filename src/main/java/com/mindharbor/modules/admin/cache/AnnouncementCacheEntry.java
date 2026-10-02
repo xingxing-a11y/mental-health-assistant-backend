@@ -1,11 +1,12 @@
-package com.mindharbor.modules.admin.vo;
+package com.mindharbor.modules.admin.cache;
 
 import com.mindharbor.modules.admin.entity.Announcement;
 import java.time.Instant;
 
-public record AnnouncementCacheDTO(Long id, String title, String content, Instant createdAt) {
-    public static AnnouncementCacheDTO from(Announcement announcement) {
-        return new AnnouncementCacheDTO(announcement.getId(), announcement.getTitle(),
+/** 公告缓存快照：字段清单固定，实体增删字段不会让已写入的缓存无法反序列化。 */
+public record AnnouncementCacheEntry(Long id, String title, String content, Instant createdAt) {
+    public static AnnouncementCacheEntry from(Announcement announcement) {
+        return new AnnouncementCacheEntry(announcement.getId(), announcement.getTitle(),
                 announcement.getContent(), announcement.getCreatedAt());
     }
 

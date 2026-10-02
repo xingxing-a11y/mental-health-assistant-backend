@@ -13,7 +13,7 @@ import com.mindharbor.security.CurrentUserProvider;
 import java.util.ArrayList;
 import java.util.List;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.mindharbor.modules.chat.vo.SensitiveWordCacheDTO;
+import com.mindharbor.modules.chat.cache.SensitiveWordCacheEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,7 +34,7 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
 
     private static final String HOTLINE = "全国心理援助热线 12356，紧急情况请拨打 120";
 
-    private static final TypeReference<List<SensitiveWordCacheDTO>> ENABLED_CACHE_TYPE =
+    private static final TypeReference<List<SensitiveWordCacheEntry>> ENABLED_CACHE_TYPE =
             new TypeReference<>() { };
 
     /** 词库为空或不可用时的兜底词表，保证服务端校验不因数据问题失效。 */
@@ -136,9 +136,9 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
 
     /** 读取启用词库缓存：未命中或缓存的 JSON 已损坏时返回 null，交给单飞回源决定是否查库。 */
     private List<SensitiveWord> readEnabledCache() {
-        List<SensitiveWordCacheDTO> cached =
+        List<SensitiveWordCacheEntry> cached =
                 cacheService.get(CacheKeys.SENSITIVE_WORD_ENABLED, ENABLED_CACHE_TYPE);
-        return cached == null ? null : cached.stream().map(SensitiveWordCacheDTO::toEntity).toList();
+        return cached == null ? null : cached.stream().map(SensitiveWordCacheEntry::toEntity).toList();
     }
 
     /** 回源启用词库：空词库不回填缓存，避免把"暂时没有词条"固化成长期结果。 */
@@ -146,7 +146,7 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
         List<SensitiveWord> loaded = sensitiveWordMapper.findEnabled();
         if (loaded != null && !loaded.isEmpty()) {
             cacheService.put(CacheKeys.SENSITIVE_WORD_ENABLED,
-                    loaded.stream().map(SensitiveWordCacheDTO::from).toList(),
+                    loaded.stream().map(SensitiveWordCacheEntry::from).toList(),
                     cacheProperties.sensitiveWord().ttlSeconds(),
                     cacheProperties.sensitiveWord().jitterSeconds());
         }
