@@ -371,8 +371,10 @@ data: {"code":"AI_SERVICE_ERROR","message":"暂时无法生成回复"}
 - DTO、VO 只声明数据字段，使用 Lombok，不使用 Java `record`，不写 `from` 或业务方法。
 - Entity 使用 Lombok 生成访问器，业务逻辑放在 Service。
 - Controller 只接收参数、记录日志并封装响应，不直接调用 Mapper；Mapper 只声明数据访问，业务判断统一放在 Service。
+- 构造器注入的依赖字段名必须等于其类型简单名的首字母小写形式：`DiaryMapper` → `diaryMapper`、`AiConversationService` → `aiConversationService`、`AdminOperationLogService` → `adminOperationLogService`。禁止用 `mapper`、`service`、`users`、`aiService` 这类缩写名或泛名，读代码时应当从字段名直接看出类型。类型名为全大写缩略词时整体小写（`OSS` → `oss`）；形如 `JWTVerifier` 的前缀缩略词连写小写（`jwtVerifier`）。构造器参数名与字段名保持一致。
+- 上一条不适用于：`static final` 常量（保持大写加下划线，日志器统一叫 `log`）、由配置值派生且类型名不具辨识度的字段（如 `String bucket`、`Path directory` 保留语义名）、以及构造函数内 `new` 出来的内部状态字段。
 - 异常分层：`ResourceNotFoundException` 表示资源不存在（404），`SecurityException` 表示越权访问（403），`IllegalArgumentException` 表示参数或业务校验失败（400）；禁止用 `IllegalArgumentException` 表达资源不存在。
-- `GlobalExceptionHandler` 统一处理 400/403/404/405/500，Controller 与 Service 不自行拼装错误响应结构。
+- `GlobalExceptionHandler` 统一处理 400/403/404/405/409/429/500，Controller 与 Service 不自行拼装错误响应结构；`401` 由过滤器层的 `SecurityConfig` 直接写出，不经过本处理器。
 - 后端按模块拆分 `controller`、`service`、`service.impl`、`mapper`、`dto`、`vo`、`entity`。
 - Service 的返回值必须使用具体类型或 `vo` 包下的 VO，禁止返回 `Object`、`Map` 或 `List<?>`；Map 只允许在方法内部作为临时结构使用。
 - 一个方法内包含多次写库时必须加 `@Transactional`（例如覆盖式维护量表题目），保证中断时不会留下半成品数据。

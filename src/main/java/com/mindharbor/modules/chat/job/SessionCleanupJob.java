@@ -32,9 +32,9 @@ public class SessionCleanupJob {
 
     private final UserSettingsMapper userSettingsMapper;
 
-    private final ChatMessageMapper messageMapper;
+    private final ChatMessageMapper chatMessageMapper;
 
-    private final ChatSessionMapper sessionMapper;
+    private final ChatSessionMapper chatSessionMapper;
 
     private final long retentionDays;
 
@@ -42,13 +42,13 @@ public class SessionCleanupJob {
 
     public SessionCleanupJob(
             UserSettingsMapper userSettingsMapper,
-            ChatMessageMapper messageMapper,
-            ChatSessionMapper sessionMapper,
+            ChatMessageMapper chatMessageMapper,
+            ChatSessionMapper chatSessionMapper,
             @Value("${job.session-cleanup.retention-days:30}") long retentionDays,
             @Value("${job.session-cleanup.batch-size:200}") int batchSize) {
         this.userSettingsMapper = userSettingsMapper;
-        this.messageMapper = messageMapper;
-        this.sessionMapper = sessionMapper;
+        this.chatMessageMapper = chatMessageMapper;
+        this.chatSessionMapper = chatSessionMapper;
         this.retentionDays = retentionDays;
         this.batchSize = Math.max(batchSize, 1);
     }
@@ -98,7 +98,7 @@ public class SessionCleanupJob {
     private int purgeMessages(Long userId, Instant before) {
         int removed = 0;
         for (int round = 0; round < MAX_BATCHES_PER_USER; round++) {
-            int affected = messageMapper.deleteExpiredBatch(userId, before, batchSize);
+            int affected = chatMessageMapper.deleteExpiredBatch(userId, before, batchSize);
             removed += affected;
             if (affected < batchSize) {
                 break;
@@ -110,7 +110,7 @@ public class SessionCleanupJob {
     private int purgeEmptySessions(Long userId, Instant before) {
         int removed = 0;
         for (int round = 0; round < MAX_BATCHES_PER_USER; round++) {
-            int affected = sessionMapper.deleteEmptyExpiredBatch(userId, before, batchSize);
+            int affected = chatSessionMapper.deleteEmptyExpiredBatch(userId, before, batchSize);
             removed += affected;
             if (affected < batchSize) {
                 break;

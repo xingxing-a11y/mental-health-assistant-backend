@@ -23,19 +23,19 @@ public class FeedbackServiceImpl implements FeedbackService {
 
     private static final int MAX_PAGE_SIZE = 50;
 
-    private final FeedbackMapper mapper;
+    private final FeedbackMapper feedbackMapper;
 
     private final CurrentUserProvider currentUserProvider;
 
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
 
     public FeedbackServiceImpl(
-            FeedbackMapper mapper,
+            FeedbackMapper feedbackMapper,
             CurrentUserProvider currentUserProvider,
-            AdminOperationLogService operationLogService) {
-        this.mapper = mapper;
+            AdminOperationLogService adminOperationLogService) {
+        this.feedbackMapper = feedbackMapper;
         this.currentUserProvider = currentUserProvider;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
     }
 
     @Override
@@ -46,7 +46,7 @@ public class FeedbackServiceImpl implements FeedbackService {
         feedback.setContent(request.getContent().trim());
         feedback.setContact(normalizeContact(request.getContact()));
         feedback.setStatus(Feedback.Status.PENDING);
-        mapper.insert(feedback);
+        feedbackMapper.insert(feedback);
         return toView(feedback);
     }
 
@@ -55,8 +55,8 @@ public class FeedbackServiceImpl implements FeedbackService {
         String normalizedStatus = normalizeStatus(status);
         int safePage = Math.max(page, 0);
         int safeSize = normalizeSize(size);
-        long total = mapper.countPage(normalizedStatus);
-        List<FeedbackVO> items = mapper
+        long total = feedbackMapper.countPage(normalizedStatus);
+        List<FeedbackVO> items = feedbackMapper
                 .findPage(normalizedStatus, safeSize, safePage * safeSize)
                 .stream()
                 .map(this::toView)
@@ -66,15 +66,15 @@ public class FeedbackServiceImpl implements FeedbackService {
 
     @Override
     public FeedbackVO handle(long feedbackId, FeedbackHandleRequest request) {
-        Feedback feedback = mapper.selectById(feedbackId);
+        Feedback feedback = feedbackMapper.selectById(feedbackId);
         if (feedback == null) {
             throw new ResourceNotFoundException("反馈不存在");
         }
         feedback.setStatus(request.getStatus());
         feedback.setRemark(normalizeRemark(request.getRemark()));
         feedback.setUpdatedAt(Instant.now());
-        mapper.updateById(feedback);
-        operationLogService.record(
+        feedbackMapper.updateById(feedback);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.FEEDBACK,
                 "feedback",
                 feedback.getId(),

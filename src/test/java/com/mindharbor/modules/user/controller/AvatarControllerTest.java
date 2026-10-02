@@ -66,7 +66,7 @@ class AvatarControllerTest {
         assertEquals(MediaType.IMAGE_PNG, response.getHeaders().getContentType());
         assertEquals(payload.length, response.getHeaders().getContentLength());
         assertEquals("nosniff", response.getHeaders().getFirst("X-Content-Type-Options"),
-                "不依赖上游拦截器的响应头是否已生效");
+                "接口自行声明 nosniff，不依赖上游响应头是否已生效");
         assertTrue(String.valueOf(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                         .startsWith("inline"),
                 "缺 inline 时部分浏览器会对图片弹下载框");

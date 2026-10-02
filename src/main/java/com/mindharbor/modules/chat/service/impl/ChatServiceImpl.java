@@ -55,28 +55,28 @@ public class ChatServiceImpl implements ChatService {
 
     private static final int MAX_KEYWORD_LENGTH = 50;
 
-    private final ChatSessionMapper sessions;
-    private final ChatMessageMapper messages;
-    private final UserMapper users;
-    private final AiConversationService aiService;
+    private final ChatSessionMapper chatSessionMapper;
+    private final ChatMessageMapper chatMessageMapper;
+    private final UserMapper userMapper;
+    private final AiConversationService aiConversationService;
     private final SensitiveWordService sensitiveWordService;
     private final CurrentUserProvider currentUserProvider;
     private final ObjectMapper objectMapper;
     private final VectorStore vectorStore;
 
     public ChatServiceImpl(
-            ChatSessionMapper sessions,
-            ChatMessageMapper messages,
-            UserMapper users,
-            AiConversationService aiService,
+            ChatSessionMapper chatSessionMapper,
+            ChatMessageMapper chatMessageMapper,
+            UserMapper userMapper,
+            AiConversationService aiConversationService,
             SensitiveWordService sensitiveWordService,
             CurrentUserProvider currentUserProvider,
             ObjectMapper objectMapper,
             @Lazy VectorStore vectorStore) {
-        this.sessions = sessions;
-        this.messages = messages;
-        this.users = users;
-        this.aiService = aiService;
+        this.chatSessionMapper = chatSessionMapper;
+        this.chatMessageMapper = chatMessageMapper;
+        this.userMapper = userMapper;
+        this.aiConversationService = aiConversationService;
         this.sensitiveWordService = sensitiveWordService;
         this.currentUserProvider = currentUserProvider;
         this.objectMapper = objectMapper;
@@ -84,7 +84,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private User currentUser() {
-        return users.findById(currentUserProvider.getUserId())
+        return userMapper.findById(currentUserProvider.getUserId())
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
     }
 
@@ -98,13 +98,13 @@ public class ChatServiceImpl implements ChatService {
                 ? DEFAULT_SESSION_NAME
                 : request.getName());
         session.setPreview(EMPTY_SESSION_PREVIEW);
-        sessions.insert(session);
+        chatSessionMapper.insert(session);
         return toView(session);
     }
 
     @Override
     public List<ChatSessionVO> list() {
-        return sessions.findByUserIdOrderByLatestMessageAtDesc(currentUser().getId())
+        return chatSessionMapper.findByUserIdOrderByLatestMessageAtDesc(currentUser().getId())
                 .stream()
                 .filter(session -> session.getPreview() != null
                         && !EMPTY_SESSION_PREVIEW.equals(session.getPreview()))
@@ -114,7 +114,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<ChatSessionVO> archived() {
-        return sessions.findArchivedByUserIdOrderByLatestMessageAtDesc(currentUser().getId())
+        return chatSessionMapper.findArchivedByUserIdOrderByLatestMessageAtDesc(currentUser().getId())
                 .stream()
                 .map(this::toView)
                 .toList();
@@ -136,7 +136,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public List<ChatMessage> history(long sessionId) {
         getOwnedSession(sessionId);
-        return messages.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        return chatMessageMapper.findBySessionIdOrderByCreatedAtAsc(sessionId);
     }
 
     /** 删除已归档会话及其全部消息。 */
@@ -146,22 +146,22 @@ public class ChatServiceImpl implements ChatService {
         if (!session.isArchived()) {
             throw new IllegalArgumentException("请先归档会话后再删除");
         }
-        messages.deleteBySessionId(sessionId);
-        sessions.deleteById(sessionId);
+        chatMessageMapper.deleteBySessionId(sessionId);
+        chatSessionMapper.deleteById(sessionId);
     }
 
     @Override
     public void clearContext(long id) {
         ChatSession session = getOwnedSession(id);
         session.setContextCleared(true);
-        sessions.updateById(session);
+        chatSessionMapper.updateById(session);
     }
 
     @Override
     public void updateSettings(long sessionId, ChatSettingsRequest request) {
         ChatSession session = getOwnedSession(sessionId);
         session.setMode(request.getMode());
-        sessions.updateById(session);
+        chatSessionMapper.updateById(session);
     }
 
     @Override
@@ -172,7 +172,7 @@ public class ChatServiceImpl implements ChatService {
             throw new IllegalArgumentException("会话名称不能为空");
         }
         session.setName(name.trim());
-        sessions.updateById(session);
+        chatSessionMapper.updateById(session);
         return toView(session);
     }
 
@@ -180,7 +180,7 @@ public class ChatServiceImpl implements ChatService {
     public ChatSessionVO togglePin(long sessionId) {
         ChatSession session = getOwnedSession(sessionId);
         session.setPinned(!session.isPinned());
-        sessions.updateById(session);
+        chatSessionMapper.updateById(session);
         return toView(session);
     }
 
@@ -189,7 +189,7 @@ public class ChatServiceImpl implements ChatService {
         ChatSession session = getOwnedSession(sessionId);
         session.setArchived(true);
         session.setPinned(false);
-        sessions.updateById(session);
+        chatSessionMapper.updateById(session);
         return toView(session);
     }
 
@@ -197,7 +197,7 @@ public class ChatServiceImpl implements ChatService {
     public ChatSessionVO unarchive(long sessionId) {
         ChatSession session = getOwnedSession(sessionId);
         session.setArchived(false);
-        sessions.updateById(session);
+        chatSessionMapper.updateById(session);
         return toView(session);
     }
 
@@ -205,14 +205,14 @@ public class ChatServiceImpl implements ChatService {
     public void favoriteMessage(long messageId, boolean favorite) {
         ChatMessage message = getOwnedAssistantMessage(messageId);
         message.setFavorite(favorite);
-        messages.updateById(message);
+        chatMessageMapper.updateById(message);
     }
 
     @Override
     public void removeFavorite(long messageId) {
         ChatMessage message = getOwnedAssistantMessage(messageId);
         message.setFavorite(false);
-        messages.updateById(message);
+        chatMessageMapper.updateById(message);
     }
 
     @Override
@@ -225,8 +225,8 @@ public class ChatServiceImpl implements ChatService {
         int safePage = Math.max(page, 0);
         int safeSize = normalizePageSize(size);
         String normalizedKeyword = normalizeKeyword(keyword);
-        long total = messages.countFavorites(userId, sessionId, normalizedKeyword);
-        List<FavoriteMessageVO> items = messages
+        long total = chatMessageMapper.countFavorites(userId, sessionId, normalizedKeyword);
+        List<FavoriteMessageVO> items = chatMessageMapper
                 .findFavorites(userId, sessionId, normalizedKeyword, safeSize, safePage * safeSize)
                 .stream()
                 .map(message -> new FavoriteMessageVO(
@@ -239,7 +239,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private ChatMessage getOwnedAssistantMessage(long messageId) {
-        ChatMessage message = messages.findById(messageId)
+        ChatMessage message = chatMessageMapper.findById(messageId)
                 .orElseThrow(() -> new ResourceNotFoundException("消息不存在"));
         getOwnedSession(message.getSessionId());
         if (message.getRole() != ChatMessage.Role.ASSISTANT) {
@@ -281,12 +281,12 @@ public class ChatServiceImpl implements ChatService {
         userMessage.setSession(session);
         userMessage.setRole(ChatMessage.Role.USER);
         userMessage.setContent(input);
-        messages.insert(userMessage);
+        chatMessageMapper.insert(userMessage);
 
         if (DEFAULT_SESSION_NAME.equals(session.getName()) && !input.isBlank()) {
             session.setName(toPreview(input));
             session.setPreview(toPreview(input));
-            sessions.updateById(session);
+            chatSessionMapper.updateById(session);
         }
 
         // 预校验接口只做提示，对话主接口必须复用同一套服务端判定
@@ -306,9 +306,9 @@ public class ChatServiceImpl implements ChatService {
         StringBuilder reply = new StringBuilder();
         String context = buildKnowledgeContext(input, session);
         session.setContextCleared(false);
-        sessions.updateById(session);
+        chatSessionMapper.updateById(session);
 
-        Disposable subscription = aiService.stream(input, context)
+        Disposable subscription = aiConversationService.stream(input, context)
                 .subscribe(
                         chunk -> appendChunk(emitter, reply, chunk),
                         exception -> sendErrorAndComplete(emitter, exception),
@@ -336,7 +336,7 @@ public class ChatServiceImpl implements ChatService {
             session.setHighRisk(true);
             session.setPreview("已触发危机干预提示");
             session.setLatestMessageAt(Instant.now());
-            sessions.updateById(session);
+            chatSessionMapper.updateById(session);
             send(emitter, "risk", Map.of(
                     "level", sensitiveCheck.getLevel().name(),
                     "message", sensitiveCheck.getPrompt(),
@@ -358,10 +358,10 @@ public class ChatServiceImpl implements ChatService {
             assistantMessage.setSession(session);
             assistantMessage.setRole(ChatMessage.Role.ASSISTANT);
             assistantMessage.setContent(reply);
-            messages.insert(assistantMessage);
+            chatMessageMapper.insert(assistantMessage);
             session.setPreview(toPreview(reply));
             session.setLatestMessageAt(Instant.now());
-            sessions.updateById(session);
+            chatSessionMapper.updateById(session);
             send(emitter, "done", Map.of("messageId", assistantMessage.getId()));
             emitter.complete();
         } catch (Exception exception) {
@@ -383,7 +383,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private ChatSession getOwnedSession(long sessionId) {
-        ChatSession session = sessions.findById(sessionId)
+        ChatSession session = chatSessionMapper.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("会话不存在"));
         if (!currentUser().getId().equals(session.getUserId())) {
             throw new SecurityException("无权访问该会话");
@@ -411,7 +411,7 @@ public class ChatServiceImpl implements ChatService {
 
         List<ChatMessage> historyMessages = session.isContextCleared()
                 ? List.of()
-                : messages.findBySessionIdOrderByCreatedAtAsc(session.getId());
+                : chatMessageMapper.findBySessionIdOrderByCreatedAtAsc(session.getId());
         String history = historyMessages
                 .stream()
                 .skip(Math.max(0, historyMessages.size() - HISTORY_CONTEXT_LIMIT))

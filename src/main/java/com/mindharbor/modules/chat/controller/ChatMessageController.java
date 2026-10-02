@@ -24,10 +24,10 @@ public class ChatMessageController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatMessageController.class);
 
-    private final ChatService service;
+    private final ChatService chatService;
 
-    public ChatMessageController(ChatService service) {
-        this.service = service;
+    public ChatMessageController(ChatService chatService) {
+        this.chatService = chatService;
     }
 
     /** 收藏或取消收藏 AI 消息。 */
@@ -36,7 +36,7 @@ public class ChatMessageController {
             @PathVariable long messageId,
             @Valid @RequestBody FavoriteRequest request) {
         log.info("Update favorite state, messageId={}", messageId);
-        service.favoriteMessage(messageId, request.getFavorite());
+        chatService.favoriteMessage(messageId, request.getFavorite());
         return ApiResponse.ok(null);
     }
 
@@ -44,7 +44,7 @@ public class ChatMessageController {
     @DeleteMapping("/favorites/{messageId}")
     public ApiResponse<Void> removeFavorite(@PathVariable long messageId) {
         log.info("Remove favorite message, messageId={}", messageId);
-        service.removeFavorite(messageId);
+        chatService.removeFavorite(messageId);
         return ApiResponse.ok(null);
     }
 
@@ -56,6 +56,6 @@ public class ChatMessageController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long sessionId) {
         log.info("List favorite messages, page={}, size={}", page, size);
-        return ApiResponse.ok(service.favoriteMessages(page, size, keyword, sessionId));
+        return ApiResponse.ok(chatService.favoriteMessages(page, size, keyword, sessionId));
     }
 }

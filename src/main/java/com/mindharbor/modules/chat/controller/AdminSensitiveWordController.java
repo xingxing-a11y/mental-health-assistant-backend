@@ -24,22 +24,22 @@ public class AdminSensitiveWordController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminSensitiveWordController.class);
 
-    private final SensitiveWordAdminService service;
+    private final SensitiveWordAdminService sensitiveWordAdminService;
 
-    public AdminSensitiveWordController(SensitiveWordAdminService service) {
-        this.service = service;
+    public AdminSensitiveWordController(SensitiveWordAdminService sensitiveWordAdminService) {
+        this.sensitiveWordAdminService = sensitiveWordAdminService;
     }
 
     @GetMapping
     public ApiResponse<List<SensitiveWordVO>> list() {
         log.info("List sensitive words");
-        return ApiResponse.ok(service.list());
+        return ApiResponse.ok(sensitiveWordAdminService.list());
     }
 
     @PostMapping
     public ApiResponse<SensitiveWordVO> create(@Valid @RequestBody SensitiveWordRequest request) {
         log.info("Create sensitive word, level={}", request.getLevel());
-        return ApiResponse.ok(service.create(request));
+        return ApiResponse.ok(sensitiveWordAdminService.create(request));
     }
 
     @PutMapping("/{id}")
@@ -47,13 +47,13 @@ public class AdminSensitiveWordController {
             @PathVariable long id,
             @Valid @RequestBody SensitiveWordRequest request) {
         log.info("Update sensitive word, wordId={}", id);
-        return ApiResponse.ok(service.update(id, request));
+        return ApiResponse.ok(sensitiveWordAdminService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable long id) {
         log.info("Delete sensitive word, wordId={}", id);
-        service.delete(id);
+        sensitiveWordAdminService.delete(id);
         return ApiResponse.ok(null);
     }
 }

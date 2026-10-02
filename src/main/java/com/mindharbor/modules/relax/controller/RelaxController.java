@@ -28,22 +28,22 @@ public class RelaxController {
 
     private static final Logger log = LoggerFactory.getLogger(RelaxController.class);
 
-    private final RelaxService service;
+    private final RelaxService relaxService;
 
-    public RelaxController(RelaxService service) {
-        this.service = service;
+    public RelaxController(RelaxService relaxService) {
+        this.relaxService = relaxService;
     }
 
     @GetMapping("/overview")
     public ApiResponse<RelaxOverviewVO> overview() {
         log.info("Load relax overview");
-        return ApiResponse.ok(service.overview());
+        return ApiResponse.ok(relaxService.overview());
     }
 
     @GetMapping("/meditations")
     public ApiResponse<List<RelaxMeditationVO>> meditations() {
         log.info("List meditation scripts");
-        return ApiResponse.ok(service.meditations());
+        return ApiResponse.ok(relaxService.meditations());
     }
 
     @GetMapping("/records")
@@ -52,14 +52,14 @@ public class RelaxController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String type) {
         log.info("List relax records, type={}", type);
-        return ApiResponse.ok(service.records(page, size, type));
+        return ApiResponse.ok(relaxService.records(page, size, type));
     }
 
     @PostMapping("/records")
     public ApiResponse<RelaxRecordVO> createRecord(
             @Valid @RequestBody RelaxRecordRequest request) {
         log.info("Create relax record, type={}", request.getType());
-        return ApiResponse.ok(service.createRecord(request));
+        return ApiResponse.ok(relaxService.createRecord(request));
     }
 
     @GetMapping("/stress-logs")
@@ -67,20 +67,20 @@ public class RelaxController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         log.info("List stress logs");
-        return ApiResponse.ok(service.stressLogs(page, size));
+        return ApiResponse.ok(relaxService.stressLogs(page, size));
     }
 
     @PostMapping("/stress-logs")
     public ApiResponse<StressLogVO> createStressLog(
             @Valid @RequestBody StressLogRequest request) {
         log.info("Create stress log, level={}", request.getLevel());
-        return ApiResponse.ok(service.createStressLog(request));
+        return ApiResponse.ok(relaxService.createStressLog(request));
     }
 
     @GetMapping("/stress-trend")
     public ApiResponse<List<StressTrendPointVO>> stressTrend(
             @RequestParam(defaultValue = "30") int days) {
         log.info("Load stress trend, days={}", days);
-        return ApiResponse.ok(service.stressTrend(days));
+        return ApiResponse.ok(relaxService.stressTrend(days));
     }
 }

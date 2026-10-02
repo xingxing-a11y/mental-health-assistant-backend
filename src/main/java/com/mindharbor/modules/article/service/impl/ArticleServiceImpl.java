@@ -24,24 +24,24 @@ public class ArticleServiceImpl implements ArticleService {
 
     private static final TypeReference<List<ArticleCacheDTO>> LIST_TYPE = new TypeReference<>() { };
 
-    private final ArticleMapper mapper;
+    private final ArticleMapper articleMapper;
     private final UserMapper userMapper;
     private final CurrentUserProvider currentUserProvider;
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
     private final CacheService cacheService;
     private final CacheProperties cacheProperties;
 
     public ArticleServiceImpl(
-            ArticleMapper mapper,
+            ArticleMapper articleMapper,
             UserMapper userMapper,
             CurrentUserProvider currentUserProvider,
-            AdminOperationLogService operationLogService,
+            AdminOperationLogService adminOperationLogService,
             CacheService cacheService,
             CacheProperties cacheProperties) {
-        this.mapper = mapper;
+        this.articleMapper = articleMapper;
         this.userMapper = userMapper;
         this.currentUserProvider = currentUserProvider;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
         this.cacheService = cacheService;
         this.cacheProperties = cacheProperties;
     }
@@ -54,7 +54,7 @@ public class ArticleServiceImpl implements ArticleService {
         }
         return cacheService.loadWithSingleFlight(CacheKeys.ARTICLE_LIST, this::readListCache, () -> {
             // 与关键词搜索、管理端列表保持同样的排序，避免缓存重建后顺序变化。
-            List<Article> articles = mapper.findAllByOrderByUpdatedAtDesc();
+            List<Article> articles = articleMapper.findAllByOrderByUpdatedAtDesc();
             cacheService.put(CacheKeys.ARTICLE_LIST, articles.stream().map(ArticleCacheDTO::from).toList(),
                     cacheProperties.article().ttlSeconds(), cacheProperties.article().jitterSeconds());
             return articles;
@@ -73,7 +73,7 @@ public class ArticleServiceImpl implements ArticleService {
             return list();
         }
 
-        return mapper.findByTitleContainingIgnoreCaseOrderByUpdatedAtDesc(keyword.trim());
+        return articleMapper.findByTitleContainingIgnoreCaseOrderByUpdatedAtDesc(keyword.trim());
     }
 
     @Override
@@ -104,7 +104,7 @@ public class ArticleServiceImpl implements ArticleService {
         if (cacheService.exists(missingKey)) {
             throw new ResourceNotFoundException("文章不存在");
         }
-        Article article = mapper.findById(id).orElse(null);
+        Article article = articleMapper.findById(id).orElse(null);
         if (article == null) {
             cacheService.put(missingKey, Boolean.TRUE,
                     cacheProperties.article().missingTtlSeconds(),
@@ -118,7 +118,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     public List<Article> adminList() {
-        return mapper.findAllByOrderByUpdatedAtDesc();
+        return articleMapper.findAllByOrderByUpdatedAtDesc();
     }
 
     @Override
@@ -127,9 +127,9 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = new Article();
         apply(article, request);
         article.setUpdatedBy(currentUserName());
-        mapper.insert(article);
+        articleMapper.insert(article);
         cacheService.deleteAfterCommit(CacheKeys.ARTICLE_LIST, CacheKeys.articleMissing(article.getId()));
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.ARTICLE,
                 "article",
                 article.getId(),
@@ -140,14 +140,14 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     @Transactional
     public Article update(Long id, ArticleRequest request) {
-        Article article = mapper.findById(id)
+        Article article = articleMapper.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
         apply(article, request);
         article.setUpdatedAt(java.time.Instant.now());
         article.setUpdatedBy(currentUserName());
-        mapper.updateById(article);
+        articleMapper.updateById(article);
         cacheService.deleteAfterCommit(CacheKeys.ARTICLE_LIST, CacheKeys.articleDetail(article.getId()));
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.ARTICLE,
                 "article",
                 article.getId(),
@@ -158,12 +158,12 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     @Transactional
     public void delete(Long id) {
-        mapper.deleteById(id);
+        articleMapper.deleteById(id);
         cacheService.deleteAfterCommit(
                 CacheKeys.ARTICLE_LIST,
                 CacheKeys.articleDetail(id),
                 CacheKeys.articleMissing(id));
-        operationLogService.record(AdminOperationLog.Type.ARTICLE, "article", id, "删除科普文章");
+        adminOperationLogService.record(AdminOperationLog.Type.ARTICLE, "article", id, "删除科普文章");
     }
 
     private void apply(Article article, ArticleRequest request) {

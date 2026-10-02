@@ -22,15 +22,15 @@ public class ChatSensitiveController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatSensitiveController.class);
 
-    private final SensitiveWordService service;
+    private final SensitiveWordService sensitiveWordService;
 
-    public ChatSensitiveController(SensitiveWordService service) {
-        this.service = service;
+    public ChatSensitiveController(SensitiveWordService sensitiveWordService) {
+        this.sensitiveWordService = sensitiveWordService;
     }
 
     @PostMapping("/sensitive-check")
     public ApiResponse<SensitiveCheckVO> check(@Valid @RequestBody SensitiveCheckRequest request) {
         log.info("Pre-check message sensitivity");
-        return ApiResponse.ok(service.inspect(request.getContent()));
+        return ApiResponse.ok(sensitiveWordService.inspect(request.getContent()));
     }
 }

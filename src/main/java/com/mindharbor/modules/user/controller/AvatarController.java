@@ -28,16 +28,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class AvatarController {
 
-    private final UserService service;
+    private final UserService userService;
 
-    public AvatarController(UserService service) {
-        this.service = service;
+    public AvatarController(UserService userService) {
+        this.userService = userService;
     }
 
     @GetMapping(AvatarStorage.URL_PREFIX + "/{filename}")
     public ResponseEntity<?> avatar(@PathVariable String filename) {
         try {
-            AvatarContent content = service.loadAvatar(filename);
+            AvatarContent content = userService.loadAvatar(filename);
             return ResponseEntity.ok()
                     .contentType(content.contentType())
                     .contentLength(content.contentLength())
@@ -46,7 +46,7 @@ public class AvatarController {
                     // 显式 inline：避免浏览器对未知类型弹下载框（P1-2）。
                     .header(HttpHeaders.CONTENT_DISPOSITION,
                             "inline; filename=\"" + filename + "\"")
-                    // 与 JwtWebConfig 的全站 nosniff 保持一致，不依赖上游配置生效顺序（P1-3）。
+                    // 显式声明 nosniff，不依赖上游 HeaderWriter 是否覆盖本响应（P1-3）。
                     .header("X-Content-Type-Options", "nosniff")
                     .body(new InputStreamResource(content.content()));
         } catch (ResourceNotFoundException exception) {

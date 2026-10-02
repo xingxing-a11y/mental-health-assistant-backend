@@ -19,15 +19,15 @@ public class FeedbackController {
 
     private static final Logger log = LoggerFactory.getLogger(FeedbackController.class);
 
-    private final FeedbackService service;
+    private final FeedbackService feedbackService;
 
-    public FeedbackController(FeedbackService service) {
-        this.service = service;
+    public FeedbackController(FeedbackService feedbackService) {
+        this.feedbackService = feedbackService;
     }
 
     @PostMapping
     public ApiResponse<FeedbackVO> submit(@Valid @RequestBody FeedbackRequest request) {
         log.info("Submit user feedback, type={}", request.getType());
-        return ApiResponse.ok(service.submit(request));
+        return ApiResponse.ok(feedbackService.submit(request));
     }
 }

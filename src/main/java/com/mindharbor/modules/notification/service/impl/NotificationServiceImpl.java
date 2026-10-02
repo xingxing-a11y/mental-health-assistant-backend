@@ -29,26 +29,26 @@ public class NotificationServiceImpl implements NotificationService {
 
     private static final String NOTIFICATION_TARGET = "notification";
 
-    private final NotificationMapper mapper;
+    private final NotificationMapper notificationMapper;
 
-    private final NotificationReadMapper readMapper;
+    private final NotificationReadMapper notificationReadMapper;
 
     private final UserMapper userMapper;
 
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
 
     private final CurrentUserProvider currentUserProvider;
 
     public NotificationServiceImpl(
-            NotificationMapper mapper,
-            NotificationReadMapper readMapper,
+            NotificationMapper notificationMapper,
+            NotificationReadMapper notificationReadMapper,
             UserMapper userMapper,
-            AdminOperationLogService operationLogService,
+            AdminOperationLogService adminOperationLogService,
             CurrentUserProvider currentUserProvider) {
-        this.mapper = mapper;
-        this.readMapper = readMapper;
+        this.notificationMapper = notificationMapper;
+        this.notificationReadMapper = notificationReadMapper;
         this.userMapper = userMapper;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -58,8 +58,8 @@ public class NotificationServiceImpl implements NotificationService {
         Instant now = Instant.now();
         int safePage = Math.max(page, 0);
         int safeSize = normalizeSize(size);
-        long total = mapper.countVisible(userId, now);
-        List<NotificationVO> items = mapper
+        long total = notificationMapper.countVisible(userId, now);
+        List<NotificationVO> items = notificationMapper
                 .findVisible(userId, now, safeSize, safePage * safeSize)
                 .stream()
                 .map(this::toView)
@@ -69,23 +69,23 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public long unreadCount() {
-        return mapper.countUnread(currentUserProvider.getUserId(), Instant.now());
+        return notificationMapper.countUnread(currentUserProvider.getUserId(), Instant.now());
     }
 
     @Override
     public void markRead(long notificationId) {
         Long userId = currentUserProvider.getUserId();
-        Notification notification = mapper.findById(notificationId)
+        Notification notification = notificationMapper.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("通知不存在或已过期"));
         if (!isVisibleTo(notification, userId)) {
             throw new ResourceNotFoundException("通知不存在或已过期");
         }
-        readMapper.markRead(notificationId, userId, Instant.now());
+        notificationReadMapper.markRead(notificationId, userId, Instant.now());
     }
 
     @Override
     public void markAllRead() {
-        readMapper.markAllRead(currentUserProvider.getUserId(), Instant.now());
+        notificationReadMapper.markAllRead(currentUserProvider.getUserId(), Instant.now());
     }
 
     @Override
@@ -97,8 +97,8 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setContent(request.getContent().trim());
         notification.setCreatedBy(currentUserProvider.getUserId());
         notification.setExpireAt(resolveExpireAt(request));
-        mapper.insert(notification);
-        operationLogService.record(
+        notificationMapper.insert(notification);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.NOTIFICATION,
                 NOTIFICATION_TARGET,
                 notification.getId(),
@@ -110,8 +110,8 @@ public class NotificationServiceImpl implements NotificationService {
     public PageResult<NotificationVO> adminList(int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = normalizeSize(size);
-        long total = mapper.countAll();
-        List<NotificationVO> items = mapper
+        long total = notificationMapper.countAll();
+        List<NotificationVO> items = notificationMapper
                 .findPage(safeSize, safePage * safeSize)
                 .stream()
                 .map(this::toView)
@@ -121,10 +121,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void revoke(long notificationId) {
-        mapper.findById(notificationId)
+        notificationMapper.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("通知不存在"));
-        mapper.deleteById(notificationId);
-        operationLogService.record(
+        notificationMapper.deleteById(notificationId);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.NOTIFICATION,
                 NOTIFICATION_TARGET,
                 notificationId,

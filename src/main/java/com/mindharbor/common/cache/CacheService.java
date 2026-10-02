@@ -31,15 +31,15 @@ public class CacheService {
 
     private static final Logger log = LoggerFactory.getLogger(CacheService.class);
 
-    private final StringRedisTemplate redis;
+    private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
-    private final CacheProperties properties;
+    private final CacheProperties cacheProperties;
     private final ConcurrentMap<String, LockEntry> locks = new ConcurrentHashMap<>();
 
-    public CacheService(StringRedisTemplate redis, CacheProperties properties) {
-        this.redis = redis;
+    public CacheService(StringRedisTemplate stringRedisTemplate, CacheProperties cacheProperties) {
+        this.stringRedisTemplate = stringRedisTemplate;
         this.objectMapper = CacheJsonMapper.create();
-        this.properties = properties;
+        this.cacheProperties = cacheProperties;
     }
 
     /**
@@ -49,7 +49,7 @@ public class CacheService {
      */
     public <T> T get(String key, Class<T> type) {
         try {
-            String value = redis.opsForValue().get(key);
+            String value = stringRedisTemplate.opsForValue().get(key);
             return value == null ? null : objectMapper.readValue(value, type);
         } catch (Exception exception) {
             logCacheFailure("read", key, exception);
@@ -60,7 +60,7 @@ public class CacheService {
 
     public <T> T get(String key, TypeReference<T> type) {
         try {
-            String value = redis.opsForValue().get(key);
+            String value = stringRedisTemplate.opsForValue().get(key);
             return value == null ? null : objectMapper.readValue(value, type);
         } catch (Exception exception) {
             logCacheFailure("read", key, exception);
@@ -71,7 +71,7 @@ public class CacheService {
 
     public boolean exists(String key) {
         try {
-            return Boolean.TRUE.equals(redis.hasKey(key));
+            return Boolean.TRUE.equals(stringRedisTemplate.hasKey(key));
         } catch (RuntimeException exception) {
             log.warn("Cache existence check failed, key={}", key, exception);
             return false;
@@ -81,7 +81,7 @@ public class CacheService {
     public void put(String key, Object value, int ttlSeconds, int jitterSeconds) {
         try {
             String json = objectMapper.writeValueAsString(value);
-            redis.opsForValue().set(key, json, Duration.ofSeconds(ttl(ttlSeconds, jitterSeconds)));
+            stringRedisTemplate.opsForValue().set(key, json, Duration.ofSeconds(ttl(ttlSeconds, jitterSeconds)));
         } catch (JsonProcessingException | RuntimeException exception) {
             logCacheFailure("write", key, exception);
         }
@@ -89,7 +89,7 @@ public class CacheService {
 
     public void delete(String key) {
         try {
-            redis.delete(key);
+            stringRedisTemplate.delete(key);
         } catch (RuntimeException exception) {
             log.warn("Cache delete failed, key={}", key, exception);
         }
@@ -151,7 +151,7 @@ public class CacheService {
     }
 
     private boolean tryLock(ReentrantLock lock) throws InterruptedException {
-        return lock.tryLock(properties.rebuildLock().waitMillis(), TimeUnit.MILLISECONDS);
+        return lock.tryLock(cacheProperties.rebuildLock().waitMillis(), TimeUnit.MILLISECONDS);
     }
 
     /** 领取键对应的锁条目并累加引用计数，保证锁对象在有人使用期间不会被并发替换。 */
@@ -176,7 +176,7 @@ public class CacheService {
 
     private boolean deleteOnce(String key) {
         try {
-            redis.delete(key);
+            stringRedisTemplate.delete(key);
             return true;
         } catch (RuntimeException exception) {
             log.debug("Cache delete attempt failed, key={}", key, exception);

@@ -25,19 +25,19 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
     private static final TypeReference<List<SensitiveWordCacheDTO>> ALL_CACHE_TYPE =
             new TypeReference<>() { };
 
-    private final SensitiveWordMapper mapper;
+    private final SensitiveWordMapper sensitiveWordMapper;
 
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
     private final CacheService cacheService;
     private final CacheProperties cacheProperties;
 
     public SensitiveWordAdminServiceImpl(
-            SensitiveWordMapper mapper,
-            AdminOperationLogService operationLogService,
+            SensitiveWordMapper sensitiveWordMapper,
+            AdminOperationLogService adminOperationLogService,
             CacheService cacheService,
             CacheProperties cacheProperties) {
-        this.mapper = mapper;
-        this.operationLogService = operationLogService;
+        this.sensitiveWordMapper = sensitiveWordMapper;
+        this.adminOperationLogService = adminOperationLogService;
         this.cacheService = cacheService;
         this.cacheProperties = cacheProperties;
     }
@@ -63,7 +63,7 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
 
     /** 回源完整词库并回填缓存。 */
     private List<SensitiveWord> loadAllWordsFromDatabase() {
-        List<SensitiveWord> loaded = mapper.findAll();
+        List<SensitiveWord> loaded = sensitiveWordMapper.findAll();
         cacheService.put(CacheKeys.SENSITIVE_WORD_ALL,
                 loaded.stream().map(SensitiveWordCacheDTO::from).toList(),
                 cacheProperties.sensitiveWord().ttlSeconds(),
@@ -75,7 +75,7 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
     @Transactional
     public SensitiveWordVO create(SensitiveWordRequest request) {
         String word = normalizeWord(request.getWord());
-        mapper.findByWord(word).ifPresent(existing -> {
+        sensitiveWordMapper.findByWord(word).ifPresent(existing -> {
             throw new IllegalArgumentException("该敏感词已存在");
         });
 
@@ -85,9 +85,9 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
         entity.setEnabled(request.getEnabled() == null || request.getEnabled());
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
-        mapper.insert(entity);
+        sensitiveWordMapper.insert(entity);
         invalidateCaches();
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.SENSITIVE_WORD,
                 "sensitive_word",
                 entity.getId(),
@@ -98,13 +98,13 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
     @Override
     @Transactional
     public SensitiveWordVO update(long wordId, SensitiveWordRequest request) {
-        SensitiveWord entity = mapper.selectById(wordId);
+        SensitiveWord entity = sensitiveWordMapper.selectById(wordId);
         if (entity == null) {
             throw new ResourceNotFoundException("敏感词不存在");
         }
 
         String word = normalizeWord(request.getWord());
-        mapper.findByWord(word)
+        sensitiveWordMapper.findByWord(word)
                 .filter(existing -> !existing.getId().equals(wordId))
                 .ifPresent(existing -> {
                     throw new IllegalArgumentException("该敏感词已存在");
@@ -116,9 +116,9 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
             entity.setEnabled(request.getEnabled());
         }
         entity.setUpdatedAt(Instant.now());
-        mapper.updateById(entity);
+        sensitiveWordMapper.updateById(entity);
         invalidateCaches();
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.SENSITIVE_WORD,
                 "sensitive_word",
                 entity.getId(),
@@ -129,12 +129,12 @@ public class SensitiveWordAdminServiceImpl implements SensitiveWordAdminService 
     @Override
     @Transactional
     public void delete(long wordId) {
-        if (mapper.selectById(wordId) == null) {
+        if (sensitiveWordMapper.selectById(wordId) == null) {
             throw new ResourceNotFoundException("敏感词不存在");
         }
-        mapper.deleteById(wordId);
+        sensitiveWordMapper.deleteById(wordId);
         invalidateCaches();
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.SENSITIVE_WORD,
                 "sensitive_word",
                 wordId,

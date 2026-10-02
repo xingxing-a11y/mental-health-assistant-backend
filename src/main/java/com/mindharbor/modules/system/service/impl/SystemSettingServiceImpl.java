@@ -44,7 +44,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
             "北京心理危机研究与干预中心 010-82951332",
             "紧急医疗救助 120");
 
-    private final SystemSettingMapper mapper;
+    private final SystemSettingMapper systemSettingMapper;
 
     private final int defaultChunkSize;
 
@@ -52,19 +52,19 @@ public class SystemSettingServiceImpl implements SystemSettingService {
 
     private final String version;
 
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
 
     public SystemSettingServiceImpl(
-            SystemSettingMapper mapper,
+            SystemSettingMapper systemSettingMapper,
             @Value("${rag.chunk-size:1000}") int defaultChunkSize,
             @Value("${rag.chunk-overlap:100}") int defaultChunkOverlap,
             @Value("${app.version:1.0.0}") String version,
-            AdminOperationLogService operationLogService) {
-        this.mapper = mapper;
+            AdminOperationLogService adminOperationLogService) {
+        this.systemSettingMapper = systemSettingMapper;
         this.defaultChunkSize = defaultChunkSize;
         this.defaultChunkOverlap = defaultChunkOverlap;
         this.version = version;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
     }
 
     @Override
@@ -84,7 +84,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
         }
         save(KEY_CHUNK_SIZE, String.valueOf(chunkSize));
         save(KEY_CHUNK_OVERLAP, String.valueOf(chunkOverlap));
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.SYSTEM_SETTING,
                 "knowledge_settings",
                 null,
@@ -100,7 +100,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     /** 配置表读取失败时回退默认值，避免影响依赖配置的业务流程。 */
     private Map<String, String> loadSettings() {
         try {
-            return mapper.findAll()
+            return systemSettingMapper.findAll()
                     .stream()
                     .filter(setting -> setting.getSettingKey() != null)
                     .collect(Collectors.toMap(
@@ -133,10 +133,10 @@ public class SystemSettingServiceImpl implements SystemSettingService {
         setting.setSettingKey(key);
         setting.setSettingValue(value);
         setting.setUpdatedAt(Instant.now());
-        if (mapper.selectById(key) == null) {
-            mapper.insert(setting);
+        if (systemSettingMapper.selectById(key) == null) {
+            systemSettingMapper.insert(setting);
             return;
         }
-        mapper.updateById(setting);
+        systemSettingMapper.updateById(setting);
     }
 }

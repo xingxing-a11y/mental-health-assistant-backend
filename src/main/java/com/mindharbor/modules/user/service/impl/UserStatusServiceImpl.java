@@ -9,10 +9,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class UserStatusServiceImpl implements UserStatusService {
 
-    private final UserMapper mapper;
+    private final UserMapper userMapper;
 
-    public UserStatusServiceImpl(UserMapper mapper) {
-        this.mapper = mapper;
+    public UserStatusServiceImpl(UserMapper userMapper) {
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -20,7 +20,7 @@ public class UserStatusServiceImpl implements UserStatusService {
         if (userId == null) {
             return false;
         }
-        return mapper.findById(userId)
+        return userMapper.findById(userId)
                 .map(user -> user.getStatus() == User.Status.ACTIVE)
                 .orElse(false);
     }

@@ -4,10 +4,8 @@ import java.util.Optional;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
-/** Provides the authenticated user id attached by the JWT interceptor. */
+/** 从安全上下文读取当前登录用户，供 Service 层获取调用者身份。 */
 @Component
 public class CurrentUserProvider {
 
@@ -16,16 +14,7 @@ public class CurrentUserProvider {
      * 供公开接口的可选个性化字段使用，避免匿名访问被当成服务端异常。
      */
     public Optional<Long> findUserId() {
-        ServletRequestAttributes attributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attributes != null) {
-            Object userId = attributes.getRequest().getAttribute("authenticatedUserId");
-            if (userId instanceof Long id) {
-                return Optional.of(id);
-            }
-        }
-
-        // 拦截器未覆盖的接口直接使用安全上下文中的身份，避免因路径清单遗漏导致取不到用户
+        // 身份由 JwtAuthenticationFilter 验签通过后写入安全上下文，未登录时此处为空
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof Long id) {
             return Optional.of(id);
@@ -33,6 +22,7 @@ public class CurrentUserProvider {
         return Optional.empty();
     }
 
+    /** 从SecurityContextHolder中获取userId提供给service层使用 */
     public Long getUserId() {
         return findUserId()
                 .orElseThrow(() -> new IllegalStateException("当前请求用户身份无效"));

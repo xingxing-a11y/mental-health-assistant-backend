@@ -16,17 +16,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 管理员用户管理接口，ADMIN 角色由 JWT 拦截器强制校验。 */
+/** 管理员用户管理接口，ADMIN 角色由 SecurityConfig 中 /admin/** 的授权规则强制校验。 */
 @RestController
 @RequestMapping("/admin/users")
 public class AdminUserController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminUserController.class);
 
-    private final UserService service;
+    private final UserService userService;
 
-    public AdminUserController(UserService service) {
-        this.service = service;
+    public AdminUserController(UserService userService) {
+        this.userService = userService;
     }
 
     @GetMapping
@@ -35,7 +35,7 @@ public class AdminUserController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String nickname) {
         log.info("List users for administrator");
-        return ApiResponse.ok(service.listUsers(page, size, nickname));
+        return ApiResponse.ok(userService.listUsers(page, size, nickname));
     }
 
     @PutMapping("/{userId}/status")
@@ -43,6 +43,6 @@ public class AdminUserController {
             @PathVariable Long userId,
             @Valid @RequestBody UserStatusRequest request) {
         log.info("Update user status, userId={}", userId);
-        return ApiResponse.ok(service.updateStatus(userId, request));
+        return ApiResponse.ok(userService.updateStatus(userId, request));
     }
 }

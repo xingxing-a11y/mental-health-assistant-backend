@@ -49,25 +49,25 @@ public class UserServiceImpl implements UserService {
     private static final Pattern AVATAR_FILENAME_PATTERN = Pattern.compile(
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:jpg|png|webp)");
 
-    private final UserMapper mapper;
+    private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserProvider currentUserProvider;
     private final UserSettingsService userSettingsService;
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
     private final AvatarStorage avatarStorage;
 
     public UserServiceImpl(
-            UserMapper mapper,
+            UserMapper userMapper,
             PasswordEncoder passwordEncoder,
             CurrentUserProvider currentUserProvider,
             UserSettingsService userSettingsService,
-            AdminOperationLogService operationLogService,
+            AdminOperationLogService adminOperationLogService,
             AvatarStorage avatarStorage) {
-        this.mapper = mapper;
+        this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.currentUserProvider = currentUserProvider;
         this.userSettingsService = userSettingsService;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
         this.avatarStorage = avatarStorage;
     }
 
@@ -82,7 +82,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("密码确认不一致");
         }
 
-        if (mapper.findByUsername(username).isPresent()) {
+        if (userMapper.findByUsername(username).isPresent()) {
             throw new IllegalArgumentException("账号已存在");
         }
 
@@ -93,7 +93,7 @@ public class UserServiceImpl implements UserService {
         user.setGender(request.getGender());
         user.setAge(request.getAge());
         try {
-            mapper.insert(user);
+            userMapper.insert(user);
         } catch (DuplicateKeyException exception) {
             throw new IllegalArgumentException("账号已存在");
         }
@@ -102,7 +102,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserVO login(LoginRequest request) {
-        User user = mapper.findByUsername(request.getUsername())
+        User user = userMapper.findByUsername(request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("用户名或密码错误"));
 
         // 锁定检查必须排在密码校验之前：否则错误密码会先进入失败分支，
@@ -127,7 +127,7 @@ public class UserServiceImpl implements UserService {
         // 复位走显式 SQL：updateById 会跳过 null 字段，locked_until 清不掉。
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
-        mapper.updateLoginFailures(user.getId(), 0, null);
+        userMapper.updateLoginFailures(user.getId(), 0, null);
         return toView(user);
     }
 
@@ -151,12 +151,12 @@ public class UserServiceImpl implements UserService {
             attempts = 0;
         }
 
-        mapper.updateLoginFailures(user.getId(), attempts, lockedUntil);
+        userMapper.updateLoginFailures(user.getId(), attempts, lockedUntil);
     }
 
     @Override
     public UserVO current() {
-        return mapper.findById(currentUserProvider.getUserId())
+        return userMapper.findById(currentUserProvider.getUserId())
                 .map(this::toView)
                 .orElse(null);
     }
@@ -172,7 +172,7 @@ public class UserServiceImpl implements UserService {
         user.setNickname(request.getNickname());
         user.setGender(request.getGender());
         user.setAge(request.getAge());
-        mapper.updateById(user);
+        userMapper.updateById(user);
         return toView(user);
     }
 
@@ -206,7 +206,7 @@ public class UserServiceImpl implements UserService {
         User user = currentEntity();
         String previousUrl = user.getAvatarUrl();
         // 条件更新：旧值被其它请求改走时影响行数为 0，避免把对方的头像当成自己的旧头像删除。
-        if (mapper.updateAvatarIfUnchanged(user.getId(), newUrl, previousUrl) == 0) {
+        if (userMapper.updateAvatarIfUnchanged(user.getId(), newUrl, previousUrl) == 0) {
             // 必须先清理本次上传的对象再抛异常，否则方法中断后它会成为无人引用的孤儿。
             deleteAvatarResource(newUrl, user.getId());
             throw new ConflictException("头像已被其它请求更新，请刷新后重试");
@@ -269,11 +269,11 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("旧密码错误");
         }
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        mapper.updateById(user);
+        userMapper.updateById(user);
     }
 
     private User currentEntity() {
-        return mapper.findById(currentUserProvider.getUserId())
+        return userMapper.findById(currentUserProvider.getUserId())
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
     }
 
@@ -283,7 +283,7 @@ public class UserServiceImpl implements UserService {
         String previousAvatar = user.getAvatarUrl();
         String anonymizedUsername = "closed_" + user.getId();
         userSettingsService.disableDataConsent(user.getId());
-        mapper.markDeactivated(user.getId(), anonymizedUsername, Instant.now());
+        userMapper.markDeactivated(user.getId(), anonymizedUsername, Instant.now());
         // 注销后 avatar_url 已置空，孤儿对象再无记录可说明归属，因此日志必须带 userId。
         deleteAvatarResource(previousAvatar, user.getId());
     }
@@ -303,7 +303,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserVO> listUsers() {
-        return mapper.selectList(null)
+        return userMapper.selectList(null)
                 .stream()
                 .map(this::toView)
                 .toList();
@@ -327,7 +327,7 @@ public class UserServiceImpl implements UserService {
             query.like(User::getNickname, keyword);
         }
         query.orderByDesc(User::getCreatedAt);
-        List<User> users = mapper.selectList(query);
+        List<User> users = userMapper.selectList(query);
         int from = Math.min(safePage * safeSize, users.size());
         int to = Math.min(from + safeSize, users.size());
         List<User> pageUsers = users.subList(from, to);
@@ -343,11 +343,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserVO updateStatus(Long userId, UserStatusRequest request) {
-        User user = mapper.findById(userId)
+        User user = userMapper.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));
         user.setStatus(request.getStatus());
-        mapper.updateById(user);
-        operationLogService.record(
+        userMapper.updateById(user);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.USER,
                 "user",
                 user.getId(),

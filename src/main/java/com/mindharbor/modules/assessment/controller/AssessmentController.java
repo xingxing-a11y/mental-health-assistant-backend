@@ -32,55 +32,55 @@ public class AssessmentController {
 
     private static final Logger log = LoggerFactory.getLogger(AssessmentController.class);
 
-    private final AssessmentService service;
+    private final AssessmentService assessmentService;
 
-    public AssessmentController(AssessmentService service) {
-        this.service = service;
+    public AssessmentController(AssessmentService assessmentService) {
+        this.assessmentService = assessmentService;
     }
 
     /** 量表列表对匿名访问同样开放，登录后额外返回收藏状态。 */
     @GetMapping("/scales")
     public ApiResponse<List<AssessmentScaleVO>> scales() {
         log.info("List assessment scales");
-        return ApiResponse.ok(service.publishedScales());
+        return ApiResponse.ok(assessmentService.publishedScales());
     }
 
     @GetMapping("/scales/{scaleId}")
     public ApiResponse<AssessmentScaleDetailVO> detail(@PathVariable Long scaleId) {
         log.info("Get assessment scale, scaleId={}", scaleId);
-        return ApiResponse.ok(service.detail(scaleId));
+        return ApiResponse.ok(assessmentService.detail(scaleId));
     }
 
     @PostMapping
     public ApiResponse<AssessmentReportVO> submit(@RequestBody AssessmentSubmitRequest request) {
         log.info("Submit assessment, scaleId={}", request.getScaleId());
-        return ApiResponse.ok(service.submit(request));
+        return ApiResponse.ok(assessmentService.submit(request));
     }
 
     @PostMapping("/analysis")
     public ApiResponse<AssessmentAnalysisVO> analyze(
             @Valid @RequestBody AssessmentAnalysisRequest request) {
         log.info("Analyze assessment result, resultId={}", request.getResultId());
-        return ApiResponse.ok(service.analyze(request.getResultId()));
+        return ApiResponse.ok(assessmentService.analyze(request.getResultId()));
     }
 
     @GetMapping
     public ApiResponse<List<AssessmentHistoryVO>> history() {
         log.info("List assessment history");
-        return ApiResponse.ok(service.history());
+        return ApiResponse.ok(assessmentService.history());
     }
 
     /** 同一量表的历次结果，供结果对比页展示分数变化。 */
     @GetMapping("/scales/{scaleId}/history")
     public ApiResponse<List<AssessmentComparisonVO>> scaleHistory(@PathVariable Long scaleId) {
         log.info("List scale history, scaleId={}", scaleId);
-        return ApiResponse.ok(service.scaleHistory(scaleId));
+        return ApiResponse.ok(assessmentService.scaleHistory(scaleId));
     }
 
     @GetMapping("/favorites")
     public ApiResponse<List<AssessmentFavoriteVO>> favorites() {
         log.info("List favorite scales");
-        return ApiResponse.ok(service.favorites());
+        return ApiResponse.ok(assessmentService.favorites());
     }
 
     @PutMapping("/scales/{scaleId}/favorite")
@@ -88,13 +88,13 @@ public class AssessmentController {
             @PathVariable Long scaleId,
             @Valid @RequestBody FavoriteScaleRequest request) {
         log.info("Update scale favorite, scaleId={}", scaleId);
-        service.updateFavorite(scaleId, Boolean.TRUE.equals(request.getFavorite()));
+        assessmentService.updateFavorite(scaleId, Boolean.TRUE.equals(request.getFavorite()));
         return ApiResponse.ok(null);
     }
 
     @GetMapping("/recommendations")
     public ApiResponse<List<AssessmentRecommendationVO>> recommendations() {
         log.info("List recommended scales");
-        return ApiResponse.ok(service.recommendations());
+        return ApiResponse.ok(assessmentService.recommendations());
     }
 }

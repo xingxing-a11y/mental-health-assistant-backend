@@ -16,15 +16,15 @@ public class SystemPolicyController {
 
     private static final Logger log = LoggerFactory.getLogger(SystemPolicyController.class);
 
-    private final SystemSettingService service;
+    private final SystemSettingService systemSettingService;
 
-    public SystemPolicyController(SystemSettingService service) {
-        this.service = service;
+    public SystemPolicyController(SystemSettingService systemSettingService) {
+        this.systemSettingService = systemSettingService;
     }
 
     @GetMapping("/policy")
     public ApiResponse<SystemPolicyVO> policy() {
         log.info("Load system policy");
-        return ApiResponse.ok(service.policy());
+        return ApiResponse.ok(systemSettingService.policy());
     }
 }

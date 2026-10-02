@@ -20,10 +20,10 @@ public class AdminOperationLogController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminOperationLogController.class);
 
-    private final AdminOperationLogService service;
+    private final AdminOperationLogService adminOperationLogService;
 
-    public AdminOperationLogController(AdminOperationLogService service) {
-        this.service = service;
+    public AdminOperationLogController(AdminOperationLogService adminOperationLogService) {
+        this.adminOperationLogService = adminOperationLogService;
     }
 
     @GetMapping
@@ -36,6 +36,6 @@ public class AdminOperationLogController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         log.info("List admin operation logs, page={}, size={}", page, size);
-        return ApiResponse.ok(service.list(page, size, type, startDate, endDate));
+        return ApiResponse.ok(adminOperationLogService.list(page, size, type, startDate, endDate));
     }
 }

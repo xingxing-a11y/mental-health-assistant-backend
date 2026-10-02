@@ -19,23 +19,23 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    /** 请求属性名：令牌对应的账号是否可用，供 MVC 拦截器复用，避免同一请求重复查询数据库。 */
+    /** 请求属性名：令牌对应的账号是否可用，供 SecurityConfig 复用，避免同一请求重复查询数据库。 */
     public static final String ACTIVE_ACCOUNT_ATTRIBUTE = "authenticatedAccountActive";
 
     private static final String ROLE_PREFIX = "ROLE_";
 
-    private final JwtTokenService tokenService;
+    private final JwtTokenService jwtTokenService;
 
-    private final JwtTokenResolver tokenResolver;
+    private final JwtTokenResolver jwtTokenResolver;
 
     private final UserStatusService userStatusService;
 
     public JwtAuthenticationFilter(
-            JwtTokenService tokenService,
-            JwtTokenResolver tokenResolver,
+            JwtTokenService jwtTokenService,
+            JwtTokenResolver jwtTokenResolver,
             UserStatusService userStatusService) {
-        this.tokenService = tokenService;
-        this.tokenResolver = tokenResolver;
+        this.jwtTokenService = jwtTokenService;
+        this.jwtTokenResolver = jwtTokenResolver;
         this.userStatusService = userStatusService;
     }
 
@@ -44,9 +44,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String token = tokenResolver.resolve(request);
-        //todo 48,57,68 处签名验证算了三次
-        if (token != null && !token.isBlank() && tokenService.isValid(token)) {
+        //获取从前端传过来的cookie中携带的token
+        String token = jwtTokenResolver.resolve(request);
+        //todo 50,59,74 处签名验证算了三次
+        if (token != null && !token.isBlank() && jwtTokenService.isValid(token)) {
             authenticate(request, token);
         }
         filterChain.doFilter(request, response);
@@ -55,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /** 令牌合法但账号已禁用时不写入身份，使旧令牌在过期前立即失效。 */
     private void authenticate(HttpServletRequest request, String token) {
         try {
-            Long userId = tokenService.getUserId(token);
+            Long userId = jwtTokenService.getUserId(token);
             //获取账号状态
             boolean active = userStatusService.isActive(userId);
             //将状态写进请求中
@@ -66,11 +67,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
             SecurityContext context = SecurityContextHolder.createEmptyContext();
-            //这个null不能省
+            //这个null不能省,将身份信息写进SecurityContextHolder中，让CurrentUserProvider直接获取userId信息
             context.setAuthentication(new UsernamePasswordAuthenticationToken(
                     userId,
                     null,
-                    resolveAuthorities(tokenService.getRole(token))));
+                    resolveAuthorities(jwtTokenService.getRole(token))));
             SecurityContextHolder.setContext(context);
         } catch (IllegalArgumentException exception) {
             // 令牌载荷异常时保持匿名身份，避免伪造内容影响鉴权结果

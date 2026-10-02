@@ -33,20 +33,20 @@ public class UserController {
 
     private static final String TOKEN_COOKIE_PATH = "/api/v1";
 
-    private final UserService service;
-    private final JwtTokenService tokenService;
+    private final UserService userService;
+    private final JwtTokenService jwtTokenService;
     private final boolean secureCookie;
 
     /** Cookie 有效期复用令牌过期时间，避免改了一处、另一处仍留旧值。 */
     private final long tokenCookieMaxAgeSeconds;
 
     public UserController(
-            UserService service,
-            JwtTokenService tokenService,
+            UserService userService,
+            JwtTokenService jwtTokenService,
             @Value("${security.cookie.secure:false}") boolean secureCookie,
             @Value("${security.jwt.expiration-seconds:7200}") long tokenCookieMaxAgeSeconds) {
-        this.service = service;
-        this.tokenService = tokenService;
+        this.userService = userService;
+        this.jwtTokenService = jwtTokenService;
         this.secureCookie = secureCookie;
         this.tokenCookieMaxAgeSeconds = tokenCookieMaxAgeSeconds;
     }
@@ -56,10 +56,10 @@ public class UserController {
             @Valid @RequestBody RegisterRequest request,
             HttpServletResponse response) {
         log.info("Register endpoint called, username={}", request.getUsername());
-        UserVO user = service.register(request);
+        UserVO user = userService.register(request);
         addAuthCookie(
                 response,
-                tokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
+                jwtTokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
         return ApiResponse.ok(new AuthResultVO(user));
     }
 
@@ -68,10 +68,10 @@ public class UserController {
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response) {
         log.info("Login endpoint called, username={}", request.getUsername());
-        UserVO user = service.login(request);
+        UserVO user = userService.login(request);
         addAuthCookie(
                 response,
-                tokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
+                jwtTokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
         return ApiResponse.ok(new AuthResultVO(user));
     }
 
@@ -85,25 +85,25 @@ public class UserController {
     @GetMapping("/users/me")
     public ApiResponse<UserVO> current() {
         log.info("Current profile endpoint called");
-        return ApiResponse.ok(service.current());
+        return ApiResponse.ok(userService.current());
     }
 
     @PutMapping("/users/me")
     public ApiResponse<UserVO> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) {
         log.info("Update current user profile");
-        return ApiResponse.ok(service.updateProfile(request));
+        return ApiResponse.ok(userService.updateProfile(request));
     }
 
     @PostMapping("/users/me/avatar")
     public ApiResponse<UserVO> updateAvatar(@RequestPart("file") MultipartFile file) {
         log.info("Update current user avatar");
-        return ApiResponse.ok(service.updateAvatar(file));
+        return ApiResponse.ok(userService.updateAvatar(file));
     }
 
     @PutMapping("/users/me/password")
     public ApiResponse<Void> updatePassword(@Valid @RequestBody PasswordUpdateRequest request) {
         log.info("Update current user password");
-        service.updatePassword(request);
+        userService.updatePassword(request);
         return ApiResponse.ok(null);
     }
 
@@ -111,7 +111,7 @@ public class UserController {
     @PostMapping("/users/me/deactivate")
     public ApiResponse<Void> deactivate(HttpServletResponse response) {
         log.info("Deactivate current account");
-        service.deactivate();
+        userService.deactivate();
         response.addHeader("Set-Cookie", authCookie("", 0).toString());
         return ApiResponse.ok(null);
     }

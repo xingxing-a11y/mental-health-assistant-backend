@@ -33,6 +33,7 @@ public class JwtTokenService {
         this.expirationSeconds = expirationSeconds;
     }
 
+    /** 注册与登录时签发 JWT，交给 UserController 写入 Cookie。 */
     public String createToken(Long userId, String username, String role) {
         Date expiresAt = new Date(System.currentTimeMillis() + expirationSeconds * 1000L);
         return JWT.create()

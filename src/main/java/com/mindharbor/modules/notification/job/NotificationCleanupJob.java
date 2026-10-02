@@ -29,17 +29,17 @@ public class NotificationCleanupJob {
     /** 单轮最多清理的批次数，避免历史数据过多时任务长期占用调度线程。 */
     private static final int MAX_BATCHES_PER_RUN = 100;
 
-    private final NotificationMapper mapper;
+    private final NotificationMapper notificationMapper;
 
     private final long retentionDays;
 
     private final int batchSize;
 
     public NotificationCleanupJob(
-            NotificationMapper mapper,
+            NotificationMapper notificationMapper,
             @Value("${job.notification-cleanup.retention-days:180}") long retentionDays,
             @Value("${job.notification-cleanup.batch-size:200}") int batchSize) {
-        this.mapper = mapper;
+        this.notificationMapper = notificationMapper;
         this.retentionDays = retentionDays;
         this.batchSize = Math.max(batchSize, 1);
     }
@@ -51,11 +51,11 @@ public class NotificationCleanupJob {
         for (int round = 0; round < MAX_BATCHES_PER_RUN; round++) {
             int affected;
             try {
-                List<Long> expiredIds = mapper.findExpiredIds(before, batchSize);
+                List<Long> expiredIds = notificationMapper.findExpiredIds(before, batchSize);
                 if (expiredIds.isEmpty()) {
                     break;
                 }
-                affected = mapper.deleteByIds(expiredIds);
+                affected = notificationMapper.deleteByIds(expiredIds);
             } catch (RuntimeException exception) {
                 log.error("{} failed to delete expired notifications, stop this round", LOG_PREFIX, exception);
                 break;

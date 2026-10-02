@@ -24,22 +24,22 @@ public class AdminArticleController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminArticleController.class);
 
-    private final ArticleService service;
+    private final ArticleService articleService;
 
-    public AdminArticleController(ArticleService service) {
-        this.service = service;
+    public AdminArticleController(ArticleService articleService) {
+        this.articleService = articleService;
     }
 
     @GetMapping
     public ApiResponse<List<Article>> list() {
         log.info("List articles for administrator");
-        return ApiResponse.ok(service.adminList());
+        return ApiResponse.ok(articleService.adminList());
     }
 
     @PostMapping
     public ApiResponse<Article> create(@Valid @RequestBody ArticleRequest request) {
         log.info("Create psychology article");
-        return ApiResponse.ok(service.create(request));
+        return ApiResponse.ok(articleService.create(request));
     }
 
     @PutMapping("/{articleId}")
@@ -47,13 +47,13 @@ public class AdminArticleController {
             @PathVariable Long articleId,
             @Valid @RequestBody ArticleRequest request) {
         log.info("Update psychology article, articleId={}", articleId);
-        return ApiResponse.ok(service.update(articleId, request));
+        return ApiResponse.ok(articleService.update(articleId, request));
     }
 
     @DeleteMapping("/{articleId}")
     public ApiResponse<Void> delete(@PathVariable Long articleId) {
         log.info("Delete psychology article, articleId={}", articleId);
-        service.delete(articleId);
+        articleService.delete(articleId);
         return ApiResponse.ok(null);
     }
 }

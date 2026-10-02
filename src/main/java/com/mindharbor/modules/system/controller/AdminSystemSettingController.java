@@ -20,22 +20,22 @@ public class AdminSystemSettingController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminSystemSettingController.class);
 
-    private final SystemSettingService service;
+    private final SystemSettingService systemSettingService;
 
-    public AdminSystemSettingController(SystemSettingService service) {
-        this.service = service;
+    public AdminSystemSettingController(SystemSettingService systemSettingService) {
+        this.systemSettingService = systemSettingService;
     }
 
     @GetMapping
     public ApiResponse<KnowledgeSettingsVO> knowledgeSettings() {
         log.info("Load knowledge chunk settings");
-        return ApiResponse.ok(service.knowledgeSettings());
+        return ApiResponse.ok(systemSettingService.knowledgeSettings());
     }
 
     @PutMapping
     public ApiResponse<KnowledgeSettingsVO> updateKnowledgeSettings(
             @Valid @RequestBody KnowledgeSettingsRequest request) {
         log.info("Update knowledge chunk settings");
-        return ApiResponse.ok(service.updateKnowledgeSettings(request));
+        return ApiResponse.ok(systemSettingService.updateKnowledgeSettings(request));
     }
 }

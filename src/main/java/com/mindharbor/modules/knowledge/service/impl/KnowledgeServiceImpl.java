@@ -21,25 +21,25 @@ import java.util.ArrayList;
 @Service
 public class KnowledgeServiceImpl implements KnowledgeService {
 
-    private final KnowledgeDocumentMapper mapper;
+    private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final VectorStore vectorStore;
     private final SystemSettingService systemSettingService;
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
 
     public KnowledgeServiceImpl(
-            KnowledgeDocumentMapper mapper,
+            KnowledgeDocumentMapper knowledgeDocumentMapper,
             @Lazy VectorStore vectorStore,
             SystemSettingService systemSettingService,
-            AdminOperationLogService operationLogService) {
-        this.mapper = mapper;
+            AdminOperationLogService adminOperationLogService) {
+        this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.vectorStore = vectorStore;
         this.systemSettingService = systemSettingService;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
     }
 
     @Override
     public List<KnowledgeDocument> list() {
-        return mapper.findAll();
+        return knowledgeDocumentMapper.findAll();
     }
 
     @Override
@@ -47,8 +47,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setTitle(request.getTitle());
         document.setContent(request.getContent());
-        mapper.insert(document);
-        operationLogService.record(
+        knowledgeDocumentMapper.insert(document);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.DOCUMENT,
                 "knowledge_document",
                 document.getId(),
@@ -58,15 +58,15 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public KnowledgeDocument update(Long id, KnowledgeDocumentRequest request) {
-        KnowledgeDocument document = mapper.findById(id)
+        KnowledgeDocument document = knowledgeDocumentMapper.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("知识库文档不存在"));
         deleteVectors(document.getId());
         document.setTitle(request.getTitle());
         document.setContent(request.getContent());
         document.setVectorStatus(KnowledgeDocument.VectorStatus.NOT_VECTORIZED);
         document.touch();
-        mapper.updateById(document);
-        operationLogService.record(
+        knowledgeDocumentMapper.updateById(document);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.DOCUMENT,
                 "knowledge_document",
                 document.getId(),
@@ -76,9 +76,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public void delete(Long id) {
-        mapper.findById(id).ifPresent(document -> deleteVectors(document.getId()));
-        mapper.deleteById(id);
-        operationLogService.record(
+        knowledgeDocumentMapper.findById(id).ifPresent(document -> deleteVectors(document.getId()));
+        knowledgeDocumentMapper.deleteById(id);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.DOCUMENT,
                 "knowledge_document",
                 id,
@@ -87,20 +87,20 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public KnowledgeDocument vectorize(Long id, boolean rebuild) {
-        KnowledgeDocument document = mapper.findById(id)
+        KnowledgeDocument document = knowledgeDocumentMapper.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("知识库文档不存在"));
         document.setVectorStatus(KnowledgeDocument.VectorStatus.PROCESSING);
-        mapper.updateById(document);
+        knowledgeDocumentMapper.updateById(document);
         try {
             deleteVectors(document.getId());
             vectorStore.add(splitDocument(document));
             document.setVectorStatus(KnowledgeDocument.VectorStatus.VECTORIZED);
         } catch (RuntimeException exception) {
             document.setVectorStatus(KnowledgeDocument.VectorStatus.FAILED);
-            mapper.updateById(document);
+            knowledgeDocumentMapper.updateById(document);
             throw new IllegalStateException("知识库向量化失败", exception);
         }
-        mapper.updateById(document);
+        knowledgeDocumentMapper.updateById(document);
         return document;
     }
 

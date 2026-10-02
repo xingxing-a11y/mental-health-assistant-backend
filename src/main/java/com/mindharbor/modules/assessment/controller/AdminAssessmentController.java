@@ -22,22 +22,22 @@ import jakarta.validation.Valid;
 public class AdminAssessmentController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminAssessmentController.class);
-    private final AssessmentService service;
+    private final AssessmentService assessmentService;
 
-    public AdminAssessmentController(AssessmentService service) {
-        this.service = service;
+    public AdminAssessmentController(AssessmentService assessmentService) {
+        this.assessmentService = assessmentService;
     }
 
     @GetMapping
     public ApiResponse<List<AssessmentScale>> list() {
         log.info("List scales for administrator");
-        return ApiResponse.ok(service.scales());
+        return ApiResponse.ok(assessmentService.scales());
     }
 
     @PostMapping
     public ApiResponse<AssessmentScale> create(@Valid @RequestBody ScaleRequest request) {
         log.info("Create assessment scale");
-        return ApiResponse.ok(service.create(request));
+        return ApiResponse.ok(assessmentService.create(request));
     }
 
     @PutMapping("/{scaleId}")
@@ -45,19 +45,19 @@ public class AdminAssessmentController {
             @PathVariable Long scaleId,
             @Valid @RequestBody ScaleRequest request) {
         log.info("Update assessment scale, scaleId={}", scaleId);
-        return ApiResponse.ok(service.update(scaleId, request));
+        return ApiResponse.ok(assessmentService.update(scaleId, request));
     }
 
     @PutMapping("/{scaleId}/publish")
     public ApiResponse<AssessmentScale> publish(@PathVariable Long scaleId) {
         log.info("Publish assessment scale, scaleId={}", scaleId);
-        return ApiResponse.ok(service.publish(scaleId));
+        return ApiResponse.ok(assessmentService.publish(scaleId));
     }
 
     @DeleteMapping("/{scaleId}")
     public ApiResponse<Void> delete(@PathVariable Long scaleId) {
         log.info("Delete assessment scale, scaleId={}", scaleId);
-        service.delete(scaleId);
+        assessmentService.delete(scaleId);
         return ApiResponse.ok(null);
     }
 }

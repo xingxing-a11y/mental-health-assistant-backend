@@ -24,16 +24,16 @@ public class AdminNotificationController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminNotificationController.class);
 
-    private final NotificationService service;
+    private final NotificationService notificationService;
 
-    public AdminNotificationController(NotificationService service) {
-        this.service = service;
+    public AdminNotificationController(NotificationService notificationService) {
+        this.notificationService = notificationService;
     }
 
     @PostMapping
     public ApiResponse<NotificationVO> push(@Valid @RequestBody NotificationPushRequest request) {
         log.info("Push notification, scope={}", request.getScope());
-        return ApiResponse.ok(service.push(request));
+        return ApiResponse.ok(notificationService.push(request));
     }
 
     @GetMapping
@@ -41,13 +41,13 @@ public class AdminNotificationController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         log.info("List pushed notifications, page={}, size={}", page, size);
-        return ApiResponse.ok(service.adminList(page, size));
+        return ApiResponse.ok(notificationService.adminList(page, size));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> revoke(@PathVariable long id) {
         log.info("Revoke notification, notificationId={}", id);
-        service.revoke(id);
+        notificationService.revoke(id);
         return ApiResponse.ok(null);
     }
 }

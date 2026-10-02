@@ -37,46 +37,46 @@ public class ChatController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
 
-    private final ChatService service;
+    private final ChatService chatService;
 
-    private final ChatExportService exportService;
+    private final ChatExportService chatExportService;
 
-    public ChatController(ChatService service, ChatExportService exportService) {
-        this.service = service;
-        this.exportService = exportService;
+    public ChatController(ChatService chatService, ChatExportService chatExportService) {
+        this.chatService = chatService;
+        this.chatExportService = chatExportService;
     }
 
     @GetMapping
     public ApiResponse<List<ChatSessionVO>> list() {
         log.info("List chat sessions");
-        return ApiResponse.ok(service.list());
+        return ApiResponse.ok(chatService.list());
     }
 
     @GetMapping("/archived")
     public ApiResponse<List<ChatSessionVO>> archived() {
         log.info("List archived chat sessions");
-        return ApiResponse.ok(service.archived());
+        return ApiResponse.ok(chatService.archived());
     }
 
     @PostMapping
     public ApiResponse<ChatSessionVO> create(
             @RequestBody(required = false) CreateSessionRequest request) {
         log.info("Create chat session");
-        return ApiResponse.ok(service.create(request));
+        return ApiResponse.ok(chatService.create(request));
     }
 
     /** 查询会话历史消息。 */
     @GetMapping("/{sessionId}/messages")
     public ApiResponse<List<ChatMessage>> history(@PathVariable long sessionId) {
         log.info("Get chat history, sessionId={}", sessionId);
-        return ApiResponse.ok(service.history(sessionId));
+        return ApiResponse.ok(chatService.history(sessionId));
     }
 
     /** 永久删除已归档会话及其全部消息。 */
     @DeleteMapping("/{sessionId}")
     public ApiResponse<Void> delete(@PathVariable long sessionId) {
         log.info("Delete chat session, sessionId={}", sessionId);
-        service.delete(sessionId);
+        chatService.delete(sessionId);
         return ApiResponse.ok(null);
     }
 
@@ -85,25 +85,25 @@ public class ChatController {
             @PathVariable long sessionId,
             @Valid @RequestBody CreateSessionRequest request) {
         log.info("Rename chat session, sessionId={}", sessionId);
-        return ApiResponse.ok(service.rename(sessionId, request));
+        return ApiResponse.ok(chatService.rename(sessionId, request));
     }
 
     @PutMapping("/{sessionId}/pin")
     public ApiResponse<ChatSessionVO> togglePin(@PathVariable long sessionId) {
         log.info("Toggle chat session pin, sessionId={}", sessionId);
-        return ApiResponse.ok(service.togglePin(sessionId));
+        return ApiResponse.ok(chatService.togglePin(sessionId));
     }
 
     @PutMapping("/{sessionId}/archive")
     public ApiResponse<ChatSessionVO> archive(@PathVariable long sessionId) {
         log.info("Archive chat session, sessionId={}", sessionId);
-        return ApiResponse.ok(service.archive(sessionId));
+        return ApiResponse.ok(chatService.archive(sessionId));
     }
 
     @PutMapping("/{sessionId}/unarchive")
     public ApiResponse<ChatSessionVO> unarchive(@PathVariable long sessionId) {
         log.info("Unarchive chat session, sessionId={}", sessionId);
-        return ApiResponse.ok(service.unarchive(sessionId));
+        return ApiResponse.ok(chatService.unarchive(sessionId));
     }
 
     /** 使用 POST 传递问题，避免原生 EventSource 无法携带请求体。 */
@@ -112,7 +112,7 @@ public class ChatController {
             @PathVariable long sessionId,
             @Valid @RequestBody ChatMessageRequest request) {
         log.info("Start SSE chat, sessionId={}", sessionId);
-        return service.stream(sessionId, request);
+        return chatService.stream(sessionId, request);
     }
 
     /**
@@ -124,7 +124,7 @@ public class ChatController {
             @PathVariable long sessionId,
             @RequestParam(defaultValue = "txt") String format) {
         log.info("Export chat session, sessionId={}, format={}", sessionId, format);
-        ChatExportFileVO file = exportService.export(sessionId, format);
+        ChatExportFileVO file = chatExportService.export(sessionId, format);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(file.getContentType()));
         headers.setContentDisposition(ContentDisposition.attachment()
@@ -137,7 +137,7 @@ public class ChatController {
     @DeleteMapping("/{sessionId}/context")
     public ApiResponse<Void> clear(@PathVariable long sessionId) {
         log.info("Clear chat context, sessionId={}", sessionId);
-        service.clearContext(sessionId);
+        chatService.clearContext(sessionId);
         return ApiResponse.ok(null);
     }
 
@@ -146,7 +146,7 @@ public class ChatController {
             @PathVariable long sessionId,
             @Valid @RequestBody ChatSettingsRequest request) {
         log.info("Update chat session settings, sessionId={}", sessionId);
-        service.updateSettings(sessionId, request);
+        chatService.updateSettings(sessionId, request);
         return ApiResponse.ok(null);
     }
 }

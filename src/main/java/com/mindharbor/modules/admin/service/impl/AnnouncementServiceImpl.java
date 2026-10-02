@@ -24,17 +24,17 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
     private final AnnouncementMapper announcementMapper;
 
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
     private final CacheService cacheService;
     private final CacheProperties cacheProperties;
 
     public AnnouncementServiceImpl(
             AnnouncementMapper announcementMapper,
-            AdminOperationLogService operationLogService,
+            AdminOperationLogService adminOperationLogService,
             CacheService cacheService,
             CacheProperties cacheProperties) {
         this.announcementMapper = announcementMapper;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
         this.cacheService = cacheService;
         this.cacheProperties = cacheProperties;
     }
@@ -69,7 +69,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         announcement.setContent(request.getContent());
         announcementMapper.insert(announcement);
         cacheService.deleteAfterCommit(CacheKeys.ANNOUNCEMENT_LIST);
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.ANNOUNCEMENT,
                 "announcement",
                 announcement.getId(),
@@ -86,7 +86,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         announcement.setContent(request.getContent());
         announcementMapper.updateById(announcement);
         cacheService.deleteAfterCommit(CacheKeys.ANNOUNCEMENT_LIST);
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.ANNOUNCEMENT,
                 "announcement",
                 announcement.getId(),
@@ -99,7 +99,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     public void delete(Long announcementId) {
         announcementMapper.deleteById(announcementId);
         cacheService.deleteAfterCommit(CacheKeys.ANNOUNCEMENT_LIST);
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.ANNOUNCEMENT,
                 "announcement",
                 announcementId,

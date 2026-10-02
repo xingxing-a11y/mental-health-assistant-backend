@@ -22,15 +22,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class DiaryController {
 
-    private final DiaryService service;
+    private final DiaryService diaryService;
 
-    public DiaryController(DiaryService service) {
-        this.service = service;
+    public DiaryController(DiaryService diaryService) {
+        this.diaryService = diaryService;
     }
 
+    /**
+     * 查询最近 2 条情绪日记
+     * @return
+     */
     @GetMapping("/diaries/recent")
     public ApiResponse<List<DiaryVO>> listRecent() {
-        return ApiResponse.ok(service.listRecent());
+        return ApiResponse.ok(diaryService.listRecent());
     }
 
     @GetMapping("/diaries")
@@ -42,41 +46,41 @@ public class DiaryController {
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("开始日期不能晚于结束日期");
         }
-        return ApiResponse.ok(service.listAll(page, size, startDate, endDate));
+        return ApiResponse.ok(diaryService.listAll(page, size, startDate, endDate));
     }
 
     @PostMapping("/diaries")
     public ApiResponse<DiaryVO> create(@Valid @RequestBody DiaryRequest request) {
-        return ApiResponse.ok(service.create(request));
+        return ApiResponse.ok(diaryService.create(request));
     }
 
     @GetMapping("/diaries/{diaryId}")
     public ApiResponse<DiaryVO> get(@PathVariable Long diaryId) {
-        return ApiResponse.ok(service.get(diaryId));
+        return ApiResponse.ok(diaryService.get(diaryId));
     }
 
     @PutMapping("/diaries/{diaryId}")
     public ApiResponse<DiaryVO> update(
             @PathVariable Long diaryId,
             @Valid @RequestBody DiaryRequest request) {
-        return ApiResponse.ok(service.update(diaryId, request));
+        return ApiResponse.ok(diaryService.update(diaryId, request));
     }
 
     @DeleteMapping("/diaries/{diaryId}")
     public ApiResponse<Void> delete(@PathVariable Long diaryId) {
-        service.delete(diaryId);
+        diaryService.delete(diaryId);
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/diaries/{diaryId}/analysis")
     public ApiResponse<DiaryAnalysisVO> analyze(@PathVariable Long diaryId) {
-        return ApiResponse.ok(new DiaryAnalysisVO(service.analyze(diaryId)));
+        return ApiResponse.ok(new DiaryAnalysisVO(diaryService.analyze(diaryId)));
     }
 
     @GetMapping("/emotions/trend")
     public ApiResponse<List<EmotionTrendPointVO>> trend(
             @RequestParam(name = "startDate", required = false) LocalDate startDate,
             @RequestParam(name = "endDate", required = false) LocalDate endDate) {
-        return ApiResponse.ok(service.trend(startDate, endDate));
+        return ApiResponse.ok(diaryService.trend(startDate, endDate));
     }
 }

@@ -23,10 +23,10 @@ public class AdminFeedbackController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminFeedbackController.class);
 
-    private final FeedbackService service;
+    private final FeedbackService feedbackService;
 
-    public AdminFeedbackController(FeedbackService service) {
-        this.service = service;
+    public AdminFeedbackController(FeedbackService feedbackService) {
+        this.feedbackService = feedbackService;
     }
 
     @GetMapping
@@ -35,7 +35,7 @@ public class AdminFeedbackController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String status) {
         log.info("List feedback tickets, page={}, size={}", page, size);
-        return ApiResponse.ok(service.list(page, size, status));
+        return ApiResponse.ok(feedbackService.list(page, size, status));
     }
 
     @PutMapping("/{id}")
@@ -43,6 +43,6 @@ public class AdminFeedbackController {
             @PathVariable long id,
             @Valid @RequestBody FeedbackHandleRequest request) {
         log.info("Handle feedback ticket, feedbackId={}", id);
-        return ApiResponse.ok(service.handle(id, request));
+        return ApiResponse.ok(feedbackService.handle(id, request));
     }
 }

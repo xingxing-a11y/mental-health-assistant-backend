@@ -87,9 +87,9 @@ public class ChatExportServiceImpl implements ChatExportService {
                     "/usr/share/fonts/truetype/arphic/uming.ttc",
                     "uming.ttc,0"});
 
-    private final ChatSessionMapper sessions;
+    private final ChatSessionMapper chatSessionMapper;
 
-    private final ChatMessageMapper messages;
+    private final ChatMessageMapper chatMessageMapper;
 
     private final CurrentUserProvider currentUserProvider;
 
@@ -103,14 +103,14 @@ public class ChatExportServiceImpl implements ChatExportService {
     private volatile FontResource fontResource;
 
     public ChatExportServiceImpl(
-            ChatSessionMapper sessions,
-            ChatMessageMapper messages,
+            ChatSessionMapper chatSessionMapper,
+            ChatMessageMapper chatMessageMapper,
             CurrentUserProvider currentUserProvider,
             @Value("${export.pdf.font-path:}") String configuredFontPath,
             @Value("${export.pdf.max-concurrent:2}") int maxConcurrent,
             @Value("${export.pdf.acquire-timeout-seconds:2}") long acquireTimeoutSeconds) {
-        this.sessions = sessions;
-        this.messages = messages;
+        this.chatSessionMapper = chatSessionMapper;
+        this.chatMessageMapper = chatMessageMapper;
         this.currentUserProvider = currentUserProvider;
         this.configuredFontPath = configuredFontPath;
         this.exportSemaphore = new Semaphore(Math.max(maxConcurrent, 1));
@@ -120,7 +120,7 @@ public class ChatExportServiceImpl implements ChatExportService {
     @Override
     public ChatExportFileVO export(long sessionId, String format) {
         ChatSession session = getOwnedSession(sessionId);
-        List<ChatMessage> history = messages.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        List<ChatMessage> history = chatMessageMapper.findBySessionIdOrderByCreatedAtAsc(sessionId);
         String baseName = buildBaseName(session);
         if (FORMAT_PDF.equals(normalizeFormat(format))) {
             return new ChatExportFileVO(
@@ -135,7 +135,7 @@ public class ChatExportServiceImpl implements ChatExportService {
     }
 
     private ChatSession getOwnedSession(long sessionId) {
-        ChatSession session = sessions.findById(sessionId)
+        ChatSession session = chatSessionMapper.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("会话不存在"));
         if (!currentUserProvider.getUserId().equals(session.getUserId())) {
             throw new SecurityException("无权访问该会话");

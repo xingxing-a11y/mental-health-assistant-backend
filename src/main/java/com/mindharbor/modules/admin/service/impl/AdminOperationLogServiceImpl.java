@@ -29,17 +29,17 @@ public class AdminOperationLogServiceImpl implements AdminOperationLogService {
 
     private static final int MAX_SUMMARY_LENGTH = 500;
 
-    private final AdminOperationLogMapper mapper;
+    private final AdminOperationLogMapper adminOperationLogMapper;
 
     private final UserMapper userMapper;
 
     private final CurrentUserProvider currentUserProvider;
 
     public AdminOperationLogServiceImpl(
-            AdminOperationLogMapper mapper,
+            AdminOperationLogMapper adminOperationLogMapper,
             UserMapper userMapper,
             CurrentUserProvider currentUserProvider) {
-        this.mapper = mapper;
+        this.adminOperationLogMapper = adminOperationLogMapper;
         this.userMapper = userMapper;
         this.currentUserProvider = currentUserProvider;
     }
@@ -55,7 +55,7 @@ public class AdminOperationLogServiceImpl implements AdminOperationLogService {
             entry.setTargetType(targetType);
             entry.setTargetId(targetId);
             entry.setSummary(truncate(summary));
-            mapper.insert(entry);
+            adminOperationLogMapper.insert(entry);
         } catch (RuntimeException exception) {
             log.error("Failed to record admin operation log, type={}", type, exception);
         }
@@ -73,8 +73,8 @@ public class AdminOperationLogServiceImpl implements AdminOperationLogService {
         Instant endAt = endDate == null ? null : endOfDay(endDate);
         int safePage = Math.max(page, 0);
         int safeSize = normalizeSize(size);
-        long total = mapper.countPage(normalizedType, startAt, endAt);
-        List<AdminOperationLogVO> items = mapper
+        long total = adminOperationLogMapper.countPage(normalizedType, startAt, endAt);
+        List<AdminOperationLogVO> items = adminOperationLogMapper
                 .findPage(normalizedType, startAt, endAt, safeSize, safePage * safeSize)
                 .stream()
                 .map(entry -> new AdminOperationLogVO(

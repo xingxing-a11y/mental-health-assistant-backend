@@ -31,12 +31,12 @@ public class OssAvatarStorage implements AvatarStorage {
 
     private static final String ACCESS_DENIED = "AccessDenied";
 
-    private final OSS client;
+    private final OSS oss;
     private final String bucket;
     private final String keyPrefix;
 
-    public OssAvatarStorage(OSS client, String bucket, String keyPrefix) {
-        this.client = client;
+    public OssAvatarStorage(OSS oss, String bucket, String keyPrefix) {
+        this.oss = oss;
         this.bucket = bucket;
         this.keyPrefix = keyPrefix + "/";
     }
@@ -47,7 +47,7 @@ public class OssAvatarStorage implements AvatarStorage {
         metadata.setContentLength(contentLength);
         metadata.setContentType(contentType);
         try {
-            client.putObject(new PutObjectRequest(bucket, key(filename), content, metadata));
+            oss.putObject(new PutObjectRequest(bucket, key(filename), content, metadata));
         } catch (OSSException | ClientException exception) {
             log.error("头像写入对象存储失败，filename={}，errorCode={}，requestId={}",
                     filename, errorCodeOf(exception), requestIdOf(exception), exception);
@@ -59,7 +59,7 @@ public class OssAvatarStorage implements AvatarStorage {
     @Override
     public void delete(String filename) {
         try {
-            client.deleteObject(bucket, key(filename));
+            oss.deleteObject(bucket, key(filename));
         } catch (OSSException | ClientException exception) {
             // 旧头像清理失败不影响新头像使用，但必须留下可回溯的记录。
             log.warn("删除 OSS 头像失败，filename={}，errorCode={}，requestId={}",
@@ -85,7 +85,7 @@ public class OssAvatarStorage implements AvatarStorage {
     @Override
     public AvatarContent load(String filename) {
         // 头像最大 2MB，一次读入内存可避免响应流中断时连接被悬挂，也省去一次取元数据的请求。
-        try (OSSObject object = client.getObject(bucket, key(filename))) {
+        try (OSSObject object = oss.getObject(bucket, key(filename))) {
             byte[] bytes = readAllBytes(object.getObjectContent());
             return new AvatarContent(
                     new ByteArrayInputStream(bytes),

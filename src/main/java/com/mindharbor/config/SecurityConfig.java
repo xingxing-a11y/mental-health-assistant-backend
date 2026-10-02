@@ -21,12 +21,12 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 
 /**
  * Spring Security 负责接口鉴权策略，JWT 校验结果由 JwtAuthenticationFilter 写入安全上下文。
- * MVC 拦截器只补充安全响应头、登录限流和当前用户信息，不再单独决定接口是否可访问。
+ * MVC 拦截器只补充登录限流，不再单独决定接口是否可访问。
  */
 @Configuration
 public class SecurityConfig {
 
-    /** 无需登录即可访问的接口，与 JwtWebConfig 中拦截器放行的路径保持一致。 */
+    /** 无需登录即可访问的接口。 */
     private static final String[] PUBLIC_ENDPOINTS = {
             "/auth/**",
             "/articles/**",
@@ -40,18 +40,18 @@ public class SecurityConfig {
             "/error"
     };
 
-    private final JwtTokenService tokenService;
+    private final JwtTokenService jwtTokenService;
 
-    private final JwtTokenResolver tokenResolver;
+    private final JwtTokenResolver jwtTokenResolver;
 
     private final UserStatusService userStatusService;
 
     public SecurityConfig(
-            JwtTokenService tokenService,
-            JwtTokenResolver tokenResolver,
+            JwtTokenService jwtTokenService,
+            JwtTokenResolver jwtTokenResolver,
             UserStatusService userStatusService) {
-        this.tokenService = tokenService;
-        this.tokenResolver = tokenResolver;
+        this.jwtTokenService = jwtTokenService;
+        this.jwtTokenResolver = jwtTokenResolver;
         this.userStatusService = userStatusService;
     }
 
@@ -73,7 +73,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(unauthorizedEntryPoint())
                         .accessDeniedHandler(accessDeniedHandler()))
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(tokenService, tokenResolver, userStatusService),
+                        new JwtAuthenticationFilter(jwtTokenService, jwtTokenResolver, userStatusService),
                         UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
                         // 流式响应和错误页会以 ASYNC/ERROR 方式二次派发，此时不重复鉴权
@@ -84,7 +84,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** 未登录统一返回 401 JSON，格式与拦截器一致，前端不需要适配两套鉴权入口。 */
+    /** 未登录统一返回 401 JSON。 */
     private AuthenticationEntryPoint unauthorizedEntryPoint() {
         return (request, response, exception) ->
                 writeJson(

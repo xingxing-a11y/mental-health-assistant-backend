@@ -19,21 +19,21 @@ public class UserSettingsController {
 
     private static final Logger log = LoggerFactory.getLogger(UserSettingsController.class);
 
-    private final UserSettingsService service;
+    private final UserSettingsService userSettingsService;
 
-    public UserSettingsController(UserSettingsService service) {
-        this.service = service;
+    public UserSettingsController(UserSettingsService userSettingsService) {
+        this.userSettingsService = userSettingsService;
     }
 
     @GetMapping
     public ApiResponse<UserSettingsVO> current() {
         log.info("Load current user settings");
-        return ApiResponse.ok(service.current());
+        return ApiResponse.ok(userSettingsService.current());
     }
 
     @PutMapping
     public ApiResponse<UserSettingsVO> update(@RequestBody UserSettingsRequest request) {
         log.info("Update current user settings");
-        return ApiResponse.ok(service.update(request));
+        return ApiResponse.ok(userSettingsService.update(request));
     }
 }

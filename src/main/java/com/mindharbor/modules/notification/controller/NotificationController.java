@@ -21,10 +21,10 @@ public class NotificationController {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationController.class);
 
-    private final NotificationService service;
+    private final NotificationService notificationService;
 
-    public NotificationController(NotificationService service) {
-        this.service = service;
+    public NotificationController(NotificationService notificationService) {
+        this.notificationService = notificationService;
     }
 
     @GetMapping
@@ -32,26 +32,26 @@ public class NotificationController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         log.info("List notifications, page={}, size={}", page, size);
-        return ApiResponse.ok(service.list(page, size));
+        return ApiResponse.ok(notificationService.list(page, size));
     }
 
     @GetMapping("/unread-count")
     public ApiResponse<UnreadCountVO> unreadCount() {
         log.info("Count unread notifications");
-        return ApiResponse.ok(new UnreadCountVO(service.unreadCount()));
+        return ApiResponse.ok(new UnreadCountVO(notificationService.unreadCount()));
     }
 
     @PutMapping("/{id}/read")
     public ApiResponse<Void> markRead(@PathVariable long id) {
         log.info("Mark notification read, notificationId={}", id);
-        service.markRead(id);
+        notificationService.markRead(id);
         return ApiResponse.ok(null);
     }
 
     @PutMapping("/read-all")
     public ApiResponse<Void> markAllRead() {
         log.info("Mark all notifications read");
-        service.markAllRead();
+        notificationService.markAllRead();
         return ApiResponse.ok(null);
     }
 }

@@ -40,22 +40,22 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
     /** 词库为空或不可用时的兜底词表，保证服务端校验不因数据问题失效。 */
     private static final List<SensitiveWord> BUILT_IN_WORDS = buildBuiltInWords();
 
-    private final SensitiveWordMapper wordMapper;
+    private final SensitiveWordMapper sensitiveWordMapper;
 
-    private final SensitiveEventMapper eventMapper;
+    private final SensitiveEventMapper sensitiveEventMapper;
 
     private final CurrentUserProvider currentUserProvider;
     private final CacheService cacheService;
     private final CacheProperties cacheProperties;
 
     public SensitiveWordServiceImpl(
-            SensitiveWordMapper wordMapper,
-            SensitiveEventMapper eventMapper,
+            SensitiveWordMapper sensitiveWordMapper,
+            SensitiveEventMapper sensitiveEventMapper,
             CurrentUserProvider currentUserProvider,
             CacheService cacheService,
             CacheProperties cacheProperties) {
-        this.wordMapper = wordMapper;
-        this.eventMapper = eventMapper;
+        this.sensitiveWordMapper = sensitiveWordMapper;
+        this.sensitiveEventMapper = sensitiveEventMapper;
         this.currentUserProvider = currentUserProvider;
         this.cacheService = cacheService;
         this.cacheProperties = cacheProperties;
@@ -143,7 +143,7 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
 
     /** 回源启用词库：空词库不回填缓存，避免把"暂时没有词条"固化成长期结果。 */
     private List<SensitiveWord> loadEnabledWordsFromDatabase() {
-        List<SensitiveWord> loaded = wordMapper.findEnabled();
+        List<SensitiveWord> loaded = sensitiveWordMapper.findEnabled();
         if (loaded != null && !loaded.isEmpty()) {
             cacheService.put(CacheKeys.SENSITIVE_WORD_ENABLED,
                     loaded.stream().map(SensitiveWordCacheDTO::from).toList(),
@@ -161,7 +161,7 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
             event.setSessionId(sessionId);
             event.setWordId(matched.getId());
             event.setLevel(matched.getLevel());
-            eventMapper.insert(event);
+            sensitiveEventMapper.insert(event);
         } catch (RuntimeException exception) {
             log.error("Failed to record sensitive event", exception);
         }

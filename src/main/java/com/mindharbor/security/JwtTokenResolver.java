@@ -4,7 +4,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 
-/** 统一解析请求携带的 JWT，Spring Security 过滤器与 MVC 拦截器共用同一套取值规则。 */
+/** 统一解析请求携带的 JWT：优先取 mh_token Cookie，其次退回 Authorization 请求头。 */
 @Component
 public class JwtTokenResolver {
 

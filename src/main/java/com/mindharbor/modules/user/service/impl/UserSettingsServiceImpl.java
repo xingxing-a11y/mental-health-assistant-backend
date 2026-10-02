@@ -13,13 +13,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class UserSettingsServiceImpl implements UserSettingsService {
 
-    private final UserSettingsMapper mapper;
+    private final UserSettingsMapper userSettingsMapper;
     private final CurrentUserProvider currentUserProvider;
 
     public UserSettingsServiceImpl(
-            UserSettingsMapper mapper,
+            UserSettingsMapper userSettingsMapper,
             CurrentUserProvider currentUserProvider) {
-        this.mapper = mapper;
+        this.userSettingsMapper = userSettingsMapper;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -35,9 +35,9 @@ public class UserSettingsServiceImpl implements UserSettingsService {
         applyRequest(settings, request);
         settings.setUpdatedAt(Instant.now());
         if (settings.getId() == null) {
-            mapper.insert(settings);
+            userSettingsMapper.insert(settings);
         } else {
-            mapper.updateById(settings);
+            userSettingsMapper.updateById(settings);
         }
         return toView(settings);
     }
@@ -47,18 +47,18 @@ public class UserSettingsServiceImpl implements UserSettingsService {
         if (userId == null) {
             return;
         }
-        mapper.findByUserId(userId).ifPresent(settings -> {
+        userSettingsMapper.findByUserId(userId).ifPresent(settings -> {
             if (!settings.isDataConsent()) {
                 return;
             }
             settings.setDataConsent(false);
             settings.setUpdatedAt(Instant.now());
-            mapper.updateById(settings);
+            userSettingsMapper.updateById(settings);
         });
     }
 
     private UserSettings findOrDefault(Long userId) {
-        return mapper.findByUserId(userId)
+        return userSettingsMapper.findByUserId(userId)
                 .orElseGet(() -> {
                     UserSettings settings = new UserSettings();
                     settings.setUserId(userId);

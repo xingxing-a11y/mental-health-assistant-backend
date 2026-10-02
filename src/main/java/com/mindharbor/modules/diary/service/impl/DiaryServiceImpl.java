@@ -24,25 +24,25 @@ public class DiaryServiceImpl implements DiaryService {
     private static final ZoneId APP_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int MAX_PAGE_SIZE = 50;
 
-    private final DiaryMapper mapper;
-    private final UserMapper users;
-    private final CurrentUserProvider currentUser;
-    private final AiConversationService aiService;
+    private final DiaryMapper diaryMapper;
+    private final UserMapper userMapper;
+    private final CurrentUserProvider currentUserProvider;
+    private final AiConversationService aiConversationService;
 
     public DiaryServiceImpl(
-            DiaryMapper mapper,
-            UserMapper users,
-            CurrentUserProvider currentUser,
-            AiConversationService aiService) {
-        this.mapper = mapper;
-        this.users = users;
-        this.currentUser = currentUser;
-        this.aiService = aiService;
+            DiaryMapper diaryMapper,
+            UserMapper userMapper,
+            CurrentUserProvider currentUserProvider,
+            AiConversationService aiConversationService) {
+        this.diaryMapper = diaryMapper;
+        this.userMapper = userMapper;
+        this.currentUserProvider = currentUserProvider;
+        this.aiConversationService = aiConversationService;
     }
 
     @Override
     public List<DiaryVO> listRecent() {
-        return mapper.findRecentByUserId(currentUser.getUserId(), 2)
+        return diaryMapper.findRecentByUserId(currentUserProvider.getUserId(), 2)
                 .stream()
                 .map(this::toView)
                 .toList();
@@ -55,12 +55,12 @@ public class DiaryServiceImpl implements DiaryService {
 
         LocalDateTime start = startDate == null ? null : startDate.atStartOfDay();
         LocalDateTime end = endDate == null ? null : endDate.plusDays(1).atStartOfDay();
-        Long userId = currentUser.getUserId();
+        Long userId = currentUserProvider.getUserId();
 
-        long total = mapper.countByUserId(userId, start, end);
+        long total = diaryMapper.countByUserId(userId, start, end);
         List<Diary> items = total == 0
                 ? List.of()
-                : mapper.findPageByUserId(userId, (long) safePage * safeSize, safeSize, start, end);
+                : diaryMapper.findPageByUserId(userId, (long) safePage * safeSize, safeSize, start, end);
         int totalPages = (int) ((total + safeSize - 1) / safeSize);
 
         return new PageResult<>(
@@ -78,13 +78,13 @@ public class DiaryServiceImpl implements DiaryService {
 
     @Override
     public DiaryVO create(DiaryRequest request) {
-        User user = users.findById(currentUser.getUserId())
+        User user = userMapper.findById(currentUserProvider.getUserId())
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户"));
         Diary diary = new Diary();
         diary.setUserId(user.getId());
         diary.setContent(request.getContent());
         diary.setEmotion(request.getEmotion());
-        mapper.insert(diary);
+        diaryMapper.insert(diary);
         return toView(diary);
     }
 
@@ -93,19 +93,19 @@ public class DiaryServiceImpl implements DiaryService {
         Diary diary = owned(id);
         diary.setContent(request.getContent());
         diary.setEmotion(request.getEmotion());
-        mapper.updateById(diary);
+        diaryMapper.updateById(diary);
         return toView(diary);
     }
 
     @Override
     public void delete(Long id) {
-        mapper.deleteById(owned(id).getId());
+        diaryMapper.deleteById(owned(id).getId());
     }
 
     @Override
     public String analyze(Long id) {
         Diary diary = owned(id);
-        return aiService.generate(
+        return aiConversationService.generate(
                 "请基于以下情绪日记给出简短、温和的自我调节建议，不做医学诊断：\n"
                         + diary.getContent(),
                 "情绪标签：" + diary.getEmotion());
@@ -119,7 +119,7 @@ public class DiaryServiceImpl implements DiaryService {
         if (start.isAfter(end)) {
             throw new IllegalArgumentException("开始日期不能晚于结束日期");
         }
-        return mapper.findByUserIdOrderByCreatedAtDesc(currentUser.getUserId()).stream()
+        return diaryMapper.findByUserIdOrderByCreatedAtDesc(currentUserProvider.getUserId()).stream()
                 .filter(diary -> {
                     LocalDate date = diary.getCreatedAt().atZone(APP_ZONE).toLocalDate();
                     return !date.isBefore(start) && !date.isAfter(end);
@@ -129,9 +129,9 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     private Diary owned(Long id) {
-        Diary diary = mapper.findById(id)
+        Diary diary = diaryMapper.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("日记不存在"));
-        if (!currentUser.getUserId().equals(diary.getUserId())) {
+        if (!currentUserProvider.getUserId().equals(diary.getUserId())) {
             throw new SecurityException("无权访问该日记");
         }
         return diary;

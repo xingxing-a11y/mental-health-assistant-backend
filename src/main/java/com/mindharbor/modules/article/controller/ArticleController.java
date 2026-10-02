@@ -19,21 +19,21 @@ public class ArticleController {
 
     private static final Logger log = LoggerFactory.getLogger(ArticleController.class);
 
-    private final ArticleService service;
+    private final ArticleService articleService;
 
-    public ArticleController(ArticleService service) {
-        this.service = service;
+    public ArticleController(ArticleService articleService) {
+        this.articleService = articleService;
     }
 
     @GetMapping
     public ApiResponse<List<Article>> list(@RequestParam(required = false) String keyword) {
         log.info("List public psychology articles");
-        return ApiResponse.ok(service.list(keyword));
+        return ApiResponse.ok(articleService.list(keyword));
     }
 
     @GetMapping("/{articleId}")
     public ApiResponse<Article> get(@PathVariable Long articleId) {
         log.info("Get psychology article, articleId={}", articleId);
-        return ApiResponse.ok(service.get(articleId));
+        return ApiResponse.ok(articleService.get(articleId));
     }
 }

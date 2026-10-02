@@ -9,6 +9,10 @@ import java.util.List;
 
 public interface DiaryService {
 
+    /**
+     * 查询最近 2 条情绪日记
+     * @return
+     */
     List<DiaryVO> listRecent();
 
     PageResult<DiaryVO> listAll(int page, int size, LocalDate startDate, LocalDate endDate);

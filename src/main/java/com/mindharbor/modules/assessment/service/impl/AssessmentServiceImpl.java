@@ -55,64 +55,64 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     private static final double RECHECK_SCORE_THRESHOLD = 60D;
 
-    private final AssessmentScaleMapper mapper;
-    private final AssessmentQuestionMapper questionMapper;
-    private final AssessmentResultMapper resultMapper;
-    private final AssessmentOptionMapper optionMapper;
-    private final AssessmentFavoriteMapper favoriteMapper;
+    private final AssessmentScaleMapper assessmentScaleMapper;
+    private final AssessmentQuestionMapper assessmentQuestionMapper;
+    private final AssessmentResultMapper assessmentResultMapper;
+    private final AssessmentOptionMapper assessmentOptionMapper;
+    private final AssessmentFavoriteMapper assessmentFavoriteMapper;
     private final UserMapper userMapper;
-    private final AdminOperationLogService operationLogService;
+    private final AdminOperationLogService adminOperationLogService;
     private final CurrentUserProvider currentUserProvider;
-    private final AiConversationService aiService;
+    private final AiConversationService aiConversationService;
     private final VectorStore vectorStore;
 
     public AssessmentServiceImpl(
-            AssessmentScaleMapper mapper,
-            AssessmentQuestionMapper questionMapper,
-            AssessmentResultMapper resultMapper,
-            AssessmentOptionMapper optionMapper,
-            AssessmentFavoriteMapper favoriteMapper,
+            AssessmentScaleMapper assessmentScaleMapper,
+            AssessmentQuestionMapper assessmentQuestionMapper,
+            AssessmentResultMapper assessmentResultMapper,
+            AssessmentOptionMapper assessmentOptionMapper,
+            AssessmentFavoriteMapper assessmentFavoriteMapper,
             UserMapper userMapper,
-            AdminOperationLogService operationLogService,
+            AdminOperationLogService adminOperationLogService,
             CurrentUserProvider currentUserProvider,
-            AiConversationService aiService,
+            AiConversationService aiConversationService,
             @Lazy VectorStore vectorStore) {
-        this.mapper = mapper;
-        this.questionMapper = questionMapper;
-        this.resultMapper = resultMapper;
-        this.optionMapper = optionMapper;
-        this.favoriteMapper = favoriteMapper;
+        this.assessmentScaleMapper = assessmentScaleMapper;
+        this.assessmentQuestionMapper = assessmentQuestionMapper;
+        this.assessmentResultMapper = assessmentResultMapper;
+        this.assessmentOptionMapper = assessmentOptionMapper;
+        this.assessmentFavoriteMapper = assessmentFavoriteMapper;
         this.userMapper = userMapper;
-        this.operationLogService = operationLogService;
+        this.adminOperationLogService = adminOperationLogService;
         this.currentUserProvider = currentUserProvider;
-        this.aiService = aiService;
+        this.aiConversationService = aiConversationService;
         this.vectorStore = vectorStore;
     }
 
     @Override
     public List<AssessmentScale> scales() {
-        return mapper.findAll();
+        return assessmentScaleMapper.findAll();
     }
 
     @Override
     public List<AssessmentScaleVO> publishedScales() {
         Set<Long> favoritedScaleIds = findFavoritedScaleIds();
-        return mapper.findAllPublished().stream()
+        return assessmentScaleMapper.findAllPublished().stream()
                 .map(scale -> toScaleView(scale, favoritedScaleIds))
                 .toList();
     }
 
     @Override
     public AssessmentScale publish(Long scaleId) {
-        AssessmentScale scale = mapper.findById(scaleId)
+        AssessmentScale scale = assessmentScaleMapper.findById(scaleId)
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
-        List<AssessmentQuestion> questions = questionMapper.findByScaleIdOrderByQuestionOrderAsc(scaleId);
+        List<AssessmentQuestion> questions = assessmentQuestionMapper.findByScaleIdOrderByQuestionOrderAsc(scaleId);
         if (questions.isEmpty()) {
             throw new IllegalArgumentException("请先添加题目后再发布");
         }
         scale.setPublished(true);
-        mapper.updateById(scale);
-        operationLogService.record(
+        assessmentScaleMapper.updateById(scale);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.SCALE,
                 "assessment_scale",
                 scale.getId(),
@@ -122,10 +122,10 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     @Override
     public AssessmentScaleDetailVO detail(Long scaleId) {
-        AssessmentScale scale = mapper.findById(scaleId)
+        AssessmentScale scale = assessmentScaleMapper.findById(scaleId)
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
-        List<AssessmentQuestion> questions = questionMapper.findByScaleIdOrderByQuestionOrderAsc(scaleId);
-        questions.forEach(question -> question.setOptions(optionMapper.findByQuestionId(question.getId())));
+        List<AssessmentQuestion> questions = assessmentQuestionMapper.findByScaleIdOrderByQuestionOrderAsc(scaleId);
+        questions.forEach(question -> question.setOptions(assessmentOptionMapper.findByQuestionId(question.getId())));
         return new AssessmentScaleDetailVO(
                 scale.getId(),
                 scale.getName(),
@@ -141,18 +141,18 @@ public class AssessmentServiceImpl implements AssessmentService {
         scale.setDescription(request.getDescription());
         scale.setApplicableScene(request.getApplicableScene());
         scale.setPublished(false);
-        mapper.insert(scale);
+        assessmentScaleMapper.insert(scale);
         return scale;
     }
 
     @Override
     public AssessmentScale update(Long scaleId, ScaleRequest request) {
-        AssessmentScale scale = mapper.findById(scaleId)
+        AssessmentScale scale = assessmentScaleMapper.findById(scaleId)
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
         scale.setName(request.getName());
         scale.setDescription(request.getDescription());
         scale.setApplicableScene(request.getApplicableScene());
-        mapper.updateById(scale);
+        assessmentScaleMapper.updateById(scale);
         return scale;
     }
 
@@ -160,18 +160,18 @@ public class AssessmentServiceImpl implements AssessmentService {
     @Override
     @Transactional
     public void delete(Long scaleId) {
-        AssessmentScale scale = mapper.findById(scaleId)
+        AssessmentScale scale = assessmentScaleMapper.findById(scaleId)
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
-        if (resultMapper.countByScaleId(scale.getId()) > 0) {
+        if (assessmentResultMapper.countByScaleId(scale.getId()) > 0) {
             throw new IllegalArgumentException("该量表已有测评记录，无法删除");
         }
 
-        List<AssessmentQuestion> questions = questionMapper
+        List<AssessmentQuestion> questions = assessmentQuestionMapper
                 .findByScaleIdOrderByQuestionOrderAsc(scaleId);
-        questions.forEach(question -> optionMapper.deleteByQuestionId(question.getId()));
-        questionMapper.deleteByScaleId(scaleId);
-        mapper.deleteById(scaleId);
-        operationLogService.record(
+        questions.forEach(question -> assessmentOptionMapper.deleteByQuestionId(question.getId()));
+        assessmentQuestionMapper.deleteByScaleId(scaleId);
+        assessmentScaleMapper.deleteById(scaleId);
+        adminOperationLogService.record(
                 AdminOperationLog.Type.SCALE,
                 "assessment_scale",
                 scale.getId(),
@@ -184,13 +184,13 @@ public class AssessmentServiceImpl implements AssessmentService {
     public List<AssessmentQuestion> replaceQuestions(
             Long scaleId,
             List<QuestionRequest> requests) {
-        AssessmentScale scale = mapper.findById(scaleId)
+        AssessmentScale scale = assessmentScaleMapper.findById(scaleId)
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
-        List<AssessmentQuestion> questions = questionMapper
+        List<AssessmentQuestion> questions = assessmentQuestionMapper
                 .findByScaleIdOrderByQuestionOrderAsc(scaleId);
         questions.forEach(question -> {
-            optionMapper.deleteByQuestionId(question.getId());
-            questionMapper.deleteById(question.getId());
+            assessmentOptionMapper.deleteByQuestionId(question.getId());
+            assessmentQuestionMapper.deleteById(question.getId());
         });
         List<AssessmentQuestion> result = new ArrayList<>();
 
@@ -223,13 +223,13 @@ public class AssessmentServiceImpl implements AssessmentService {
 
         // 遍历列表将题目插入到问卷中
         result.forEach(question -> {
-            questionMapper.insert(question);
+            assessmentQuestionMapper.insert(question);
             question.getOptions().forEach(option -> {
                 option.setQuestionId(question.getId());
-                optionMapper.insert(option);
+                assessmentOptionMapper.insert(option);
             });
         });
-        operationLogService.record(
+        adminOperationLogService.record(
                 AdminOperationLog.Type.SCALE,
                 "assessment_scale_questions",
                 scale.getId(),
@@ -243,7 +243,7 @@ public class AssessmentServiceImpl implements AssessmentService {
             throw new IllegalArgumentException("测评参数不能为空");
         }
 
-        AssessmentScale submitScale = mapper.findById(request.getScaleId())
+        AssessmentScale submitScale = assessmentScaleMapper.findById(request.getScaleId())
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
         if (!Boolean.TRUE.equals(submitScale.getPublished())) {
             throw new IllegalArgumentException("该量表尚未发布");
@@ -251,10 +251,10 @@ public class AssessmentServiceImpl implements AssessmentService {
 
         int score = 0;
         int maxScore = 0;
-        List<AssessmentQuestion> scaleQuestions = questionMapper
+        List<AssessmentQuestion> scaleQuestions = assessmentQuestionMapper
                 .findByScaleIdOrderByQuestionOrderAsc(request.getScaleId());
         scaleQuestions.forEach(question -> {
-            question.setOptions(optionMapper.findByQuestionId(question.getId()));
+            question.setOptions(assessmentOptionMapper.findByQuestionId(question.getId()));
             question.setType(normalizeQuestionType(question.getType()));
         });
         if (scaleQuestions.isEmpty()) {
@@ -273,7 +273,7 @@ public class AssessmentServiceImpl implements AssessmentService {
                     || !answeredQuestionIds.add(answer.getQuestionId())) {
                 throw new IllegalArgumentException("题目答案存在重复或缺失");
             }
-            AssessmentQuestion question = questionMapper
+            AssessmentQuestion question = assessmentQuestionMapper
                     .findByIdAndScaleId(answer.getQuestionId(), request.getScaleId())
                     .orElseThrow(() -> new IllegalArgumentException("题目不属于当前量表"));
             String type = normalizeQuestionType(question.getType());
@@ -311,7 +311,7 @@ public class AssessmentServiceImpl implements AssessmentService {
 
         String range = score < 30 ? "情绪状态总体平稳" : "情绪可能存在一定波动";
         List<String> suggestions = buildSuggestions();
-        AssessmentScale scale = mapper.findById(request.getScaleId())
+        AssessmentScale scale = assessmentScaleMapper.findById(request.getScaleId())
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
         AssessmentResult result = new AssessmentResult();
         result.setUserId(currentUserProvider.getUserId());
@@ -322,7 +322,7 @@ public class AssessmentServiceImpl implements AssessmentService {
         result.setStandardScore(maxScore == 0 ? 0D : score * 100D / maxScore);
         result.setRangeDescription(range + "，结果仅供参考，不构成诊断");
         result.setSuggestions(String.join(SUGGESTION_SEPARATOR, suggestions));
-        resultMapper.insert(result);
+        assessmentResultMapper.insert(result);
 
         return new AssessmentReportVO(
                 result.getId(),
@@ -334,14 +334,14 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     @Override
     public AssessmentAnalysisVO analyze(Long resultId) {
-        AssessmentResult result = resultMapper.selectById(resultId);
+        AssessmentResult result = assessmentResultMapper.selectById(resultId);
         if (result == null || !currentUserProvider.getUserId().equals(result.getUserId())) {
             throw new ResourceNotFoundException("测评结果不存在");
         }
 
-        AssessmentScale scale = mapper.findById(result.getScaleId())
+        AssessmentScale scale = assessmentScaleMapper.findById(result.getScaleId())
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
-        String analysis = aiService.generate(
+        String analysis = aiConversationService.generate(
                 "请根据量表“" + scale.getName() + "”的总分 " + result.getTotalScore()
                         + "，给出温和、简短的情绪倾向解读和适当的安慰建议。禁止医学诊断，"
                         + "不要夸大风险，不要编造用户经历。",
@@ -356,7 +356,7 @@ public class AssessmentServiceImpl implements AssessmentService {
     @Override
     public List<AssessmentHistoryVO> history() {
         List<AssessmentResult> results =
-                resultMapper.findByUserIdOrderByCreatedAtDesc(currentUserProvider.getUserId());
+                assessmentResultMapper.findByUserIdOrderByCreatedAtDesc(currentUserProvider.getUserId());
         Map<Long, String> scaleNames = findScaleNames(results);
 
         return results.stream()
@@ -372,9 +372,9 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
     @Override
     public List<AssessmentComparisonVO> scaleHistory(Long scaleId) {
-        AssessmentScale scale = mapper.findById(scaleId)
+        AssessmentScale scale = assessmentScaleMapper.findById(scaleId)
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
-        return resultMapper.findByUserIdAndScaleIdOrderByCreatedAtAsc(
+        return assessmentResultMapper.findByUserIdAndScaleIdOrderByCreatedAtAsc(
                         currentUserProvider.getUserId(),
                         scale.getId())
                 .stream()
@@ -389,13 +389,13 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     @Override
     public List<AssessmentFavoriteVO> favorites() {
-        Map<Long, AssessmentScale> scales = mapper.findAll()
+        Map<Long, AssessmentScale> scales = assessmentScaleMapper.findAll()
                 .stream()
                 .collect(Collectors.toMap(
                         AssessmentScale::getId,
                         scale -> scale,
                         (first, second) -> first));
-        return favoriteMapper.findByUserIdOrderByCreatedAtDesc(currentUserProvider.getUserId())
+        return assessmentFavoriteMapper.findByUserIdOrderByCreatedAtDesc(currentUserProvider.getUserId())
                 .stream()
                 .map(favorite -> toFavoriteView(scales.get(favorite.getScaleId()), favorite))
                 .filter(Objects::nonNull)
@@ -406,17 +406,17 @@ public class AssessmentServiceImpl implements AssessmentService {
     @Override
     public void updateFavorite(Long scaleId, boolean favorite) {
         Long userId = currentUserProvider.getUserId();
-        AssessmentScale scale = mapper.findById(scaleId)
+        AssessmentScale scale = assessmentScaleMapper.findById(scaleId)
                 .orElseThrow(() -> new ResourceNotFoundException("量表不存在"));
         if (!favorite) {
-            favoriteMapper.deleteByUserIdAndScaleId(userId, scale.getId());
+            assessmentFavoriteMapper.deleteByUserIdAndScaleId(userId, scale.getId());
             return;
         }
-        if (favoriteMapper.findByUserIdAndScaleId(userId, scale.getId()).isEmpty()) {
+        if (assessmentFavoriteMapper.findByUserIdAndScaleId(userId, scale.getId()).isEmpty()) {
             AssessmentFavorite entity = new AssessmentFavorite();
             entity.setUserId(userId);
             entity.setScaleId(scale.getId());
-            favoriteMapper.insert(entity);
+            assessmentFavoriteMapper.insert(entity);
         }
     }
 
@@ -424,9 +424,9 @@ public class AssessmentServiceImpl implements AssessmentService {
     @Override
     public List<AssessmentRecommendationVO> recommendations() {
         Long userId = currentUserProvider.getUserId();
-        List<AssessmentScale> scales = mapper.findAllPublished();
+        List<AssessmentScale> scales = assessmentScaleMapper.findAllPublished();
         Map<Long, AssessmentResult> latestByScale = new HashMap<>();
-        for (AssessmentResult result : resultMapper.findByUserIdOrderByCreatedAtDesc(userId)) {
+        for (AssessmentResult result : assessmentResultMapper.findByUserIdOrderByCreatedAtDesc(userId)) {
             latestByScale.putIfAbsent(result.getScaleId(), result);
         }
 
@@ -484,7 +484,7 @@ public class AssessmentServiceImpl implements AssessmentService {
     /** 匿名访问量表列表时不带收藏信息，登录后按当前用户收藏标记。 */
     private Set<Long> findFavoritedScaleIds() {
         return currentUserProvider.findUserId()
-                .map(favoriteMapper::findByUserIdOrderByCreatedAtDesc)
+                .map(assessmentFavoriteMapper::findByUserIdOrderByCreatedAtDesc)
                 .map(favorites -> favorites.stream()
                         .map(AssessmentFavorite::getScaleId)
                         .collect(Collectors.toSet()))
@@ -510,7 +510,7 @@ public class AssessmentServiceImpl implements AssessmentService {
         if (scaleIds.isEmpty()) {
             return Map.of();
         }
-        return mapper.selectBatchIds(scaleIds).stream()
+        return assessmentScaleMapper.selectBatchIds(scaleIds).stream()
                 .filter(scale -> scale.getName() != null)
                 .collect(Collectors.toMap(AssessmentScale::getId, AssessmentScale::getName));
     }
