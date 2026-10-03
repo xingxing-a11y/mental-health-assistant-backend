@@ -651,6 +651,7 @@ paths:
     post:
       tags: [Admin Knowledge]
       summary: 手动向量化知识库文档
+      description: 幂等接口：文档已处于「已向量化」状态时直接返回，不重复切片、不重复调用向量模型；需要强制重算请改用 re-vectorize。
       parameters:
         - $ref: '#/components/parameters/DocumentId'
       responses:
@@ -665,7 +666,7 @@ paths:
     post:
       tags: [Admin Knowledge]
       summary: 重新向量化知识库文档
-      description: 执行前删除旧向量，然后切片、Embedding 并写入新向量。
+      description: 无条件重建：执行前删除旧向量，然后切片、Embedding 并写入新向量。
       parameters:
         - $ref: '#/components/parameters/DocumentId'
       responses:

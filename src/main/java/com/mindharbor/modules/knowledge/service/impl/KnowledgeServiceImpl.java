@@ -89,6 +89,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public KnowledgeDocument vectorize(Long id, boolean rebuild) {
         KnowledgeDocument document = knowledgeDocumentMapper.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("知识库文档不存在"));
+        if (!rebuild && document.getVectorStatus() == KnowledgeDocument.VectorStatus.VECTORIZED) {
+            return document;
+        }
         document.setVectorStatus(KnowledgeDocument.VectorStatus.PROCESSING);
         knowledgeDocumentMapper.updateById(document);
         try {

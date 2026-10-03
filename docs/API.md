@@ -117,8 +117,8 @@
 | POST | `/admin/knowledge-documents` | 新增文档 |
 | PUT | `/admin/knowledge-documents/{documentId}` | 编辑文档 |
 | DELETE | `/admin/knowledge-documents/{documentId}` | 删除文档和旧向量 |
-| POST | `/admin/knowledge-documents/{documentId}/vectorize` | 手动向量化 |
-| POST | `/admin/knowledge-documents/{documentId}/re-vectorize` | 删除旧向量后重新向量化 |
+| POST | `/admin/knowledge-documents/{documentId}/vectorize` | 手动向量化；幂等，文档已是「已向量化」时直接返回，不重复调用向量模型 |
+| POST | `/admin/knowledge-documents/{documentId}/re-vectorize` | 无条件重建：删除旧向量后重新切片、向量化 |
 | GET | `/admin/scales` | 管理员量表列表 |
 | POST | `/admin/scales` | 新增量表 |
 | PUT | `/admin/scales/{scaleId}` | 编辑量表名称、简介和适用场景 |
