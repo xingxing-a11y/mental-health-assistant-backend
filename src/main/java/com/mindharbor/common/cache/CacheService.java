@@ -97,6 +97,7 @@ public class CacheService {
 
     public void deleteWithRetry(String... keys) {
         for (String key : keys) {
+            // 短路求值：第一次成功就不再执行第二次，两次都失败才放弃
             boolean deleted = deleteOnce(key) || deleteOnce(key);
             if (!deleted) {
                 log.warn("Cache delete gave up after one retry, key={}, rely on TTL to recover", key);
@@ -105,10 +106,12 @@ public class CacheService {
     }
 
     public void deleteAfterCommit(String... keys) {
+        //当前线程没有事务，立刻删
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             deleteWithRetry(keys);
             return;
         }
+        //当前线程有事务，登记一个"提交后执行"的回调
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
@@ -118,7 +121,7 @@ public class CacheService {
     }
 
     /**
-     * 按缓存键执行单飞回源，避免同一个键的并发未命中一起压到 MySQL。
+     * 按缓存键执行单飞回源，避免同一个键的并发未命中一起压到 MySQL，避免缓存击穿。
      *
      * <p>同一 JVM 内相同键的请求会依次通过：拿到锁的请求先二次读取缓存，仍然未命中才执行回源；
      * 拿不到锁的请求等待不超过 {@code cache.rebuild-lock.wait-millis}，随后重新读取缓存，
@@ -129,6 +132,7 @@ public class CacheService {
      * @param loader            回源方法，仅在缓存未命中时执行
      */
     public <T> T loadWithSingleFlight(String key, Supplier<T> cachedValueReader, Supplier<T> loader) {
+        //领取锁条目，引用计数 +1
         LockEntry entry = acquireLockEntry(key);
         boolean locked = false;
         try {

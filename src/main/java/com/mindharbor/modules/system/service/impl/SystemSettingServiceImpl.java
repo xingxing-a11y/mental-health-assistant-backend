@@ -75,6 +75,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
                 readInt(settings, KEY_CHUNK_OVERLAP, defaultChunkOverlap));
     }
 
+    /** 更新和插入知识库分片参数 */
     @Override
     public KnowledgeSettingsVO updateKnowledgeSettings(KnowledgeSettingsRequest request) {
         int chunkSize = request.getChunkSize();

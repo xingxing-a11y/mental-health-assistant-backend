@@ -48,6 +48,7 @@ public class AdminOperationLogServiceImpl implements AdminOperationLogService {
     public void record(AdminOperationLog.Type type, String targetType, Long targetId, String summary) {
         try {
             Long operatorId = currentUserProvider.getUserId();
+            //new时自动将当前时间进行赋值
             AdminOperationLog entry = new AdminOperationLog();
             entry.setOperatorId(operatorId);
             entry.setOperatorName(resolveOperatorName(operatorId));
@@ -70,6 +71,7 @@ public class AdminOperationLogServiceImpl implements AdminOperationLogService {
             LocalDate endDate) {
         String normalizedType = normalizeType(type);
         Instant startAt = startDate == null ? null : startOfDay(startDate);
+        //23:59:99999...
         Instant endAt = endDate == null ? null : endOfDay(endDate);
         int safePage = Math.max(page, 0);
         int safeSize = normalizeSize(size);
