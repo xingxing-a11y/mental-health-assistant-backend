@@ -3,6 +3,7 @@ package com.mindharbor.modules.knowledge.service.impl;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.mindharbor.modules.admin.service.AdminOperationLogService;
 import com.mindharbor.modules.knowledge.entity.KnowledgeDocument;
 import com.mindharbor.modules.knowledge.mapper.KnowledgeDocumentMapper;
 import com.mindharbor.modules.system.service.SystemSettingService;
@@ -32,8 +33,10 @@ class KnowledgeServiceImplVectorizeTest {
         FakeKnowledgeDocumentMapper documents = new FakeKnowledgeDocumentMapper();
         documents.document = document(KnowledgeDocument.VectorStatus.VECTORIZED);
         FakeVectorStore vectorStore = new FakeVectorStore();
+        FakeAdminOperationLogService operationLogs = new FakeAdminOperationLogService();
 
-        KnowledgeDocument result = serviceWith(documents, vectorStore).vectorize(1L, false);
+        KnowledgeDocument result =
+                serviceWith(documents, vectorStore, operationLogs).vectorize(1L, false);
 
         assertEquals(KnowledgeDocument.VectorStatus.VECTORIZED, result.getVectorStatus());
         assertTrue(vectorStore.calls.isEmpty(),
@@ -48,8 +51,10 @@ class KnowledgeServiceImplVectorizeTest {
         FakeKnowledgeDocumentMapper documents = new FakeKnowledgeDocumentMapper();
         documents.document = document(KnowledgeDocument.VectorStatus.VECTORIZED);
         FakeVectorStore vectorStore = new FakeVectorStore();
+        FakeAdminOperationLogService operationLogs = new FakeAdminOperationLogService();
 
-        KnowledgeDocument result = serviceWith(documents, vectorStore).vectorize(1L, true);
+        KnowledgeDocument result =
+                serviceWith(documents, vectorStore, operationLogs).vectorize(1L, true);
 
         assertEquals(KnowledgeDocument.VectorStatus.VECTORIZED, result.getVectorStatus());
         assertEquals(List.of("delete", "add"), vectorStore.calls);
@@ -59,6 +64,10 @@ class KnowledgeServiceImplVectorizeTest {
                         KnowledgeDocument.VectorStatus.VECTORIZED),
                 documents.writtenStatuses,
                 "强制重建要走完整的 PROCESSING → VECTORIZED 状态流转");
+        assertEquals(
+                List.of("向量化知识库文档"),
+                operationLogs.summaries,
+                "真正花钱的向量化必须留一条审计，否则事后无法追溯");
     }
 
     @Test
@@ -70,8 +79,9 @@ class KnowledgeServiceImplVectorizeTest {
             FakeKnowledgeDocumentMapper documents = new FakeKnowledgeDocumentMapper();
             documents.document = document(status);
             FakeVectorStore vectorStore = new FakeVectorStore();
+            FakeAdminOperationLogService operationLogs = new FakeAdminOperationLogService();
 
-            serviceWith(documents, vectorStore).vectorize(1L, false);
+            serviceWith(documents, vectorStore, operationLogs).vectorize(1L, false);
 
             assertEquals(List.of("delete", "add"), vectorStore.calls,
                     "状态 " + status + " 应真正执行向量化，否则失败文档永远无法重试");
@@ -87,11 +97,16 @@ class KnowledgeServiceImplVectorizeTest {
         return document;
     }
 
-    /** vectorize 只用到 mapper、vectorStore 与分片参数，操作日志不参与这条路径。 */
+    /** vectorize 依赖文档 mapper、向量库、分片参数与审计日志四者，缺一不可。 */
     private static KnowledgeServiceImpl serviceWith(
-            FakeKnowledgeDocumentMapper documents, FakeVectorStore vectorStore) {
+            FakeKnowledgeDocumentMapper documents,
+            FakeVectorStore vectorStore,
+            FakeAdminOperationLogService operationLogs) {
         return new KnowledgeServiceImpl(
-                documents.asMapper(), vectorStore.asVectorStore(), settingsService(), null);
+                documents.asMapper(),
+                vectorStore.asVectorStore(),
+                settingsService(),
+                operationLogs.asService());
     }
 
     private static SystemSettingService settingsService() {
@@ -141,6 +156,25 @@ class KnowledgeServiceImplVectorizeTest {
                             default -> throw new UnsupportedOperationException(method.getName());
                         }
                         return null;
+                    });
+        }
+    }
+
+    /** record 是 void，只留一份摘要流水，用于断言「哪条出口写了什么」。 */
+    private static final class FakeAdminOperationLogService {
+
+        private final List<String> summaries = new ArrayList<>();
+
+        private AdminOperationLogService asService() {
+            return (AdminOperationLogService) Proxy.newProxyInstance(
+                    KnowledgeServiceImplVectorizeTest.class.getClassLoader(),
+                    new Class<?>[] {AdminOperationLogService.class},
+                    (proxy, method, args) -> switch (method.getName()) {
+                        case "record" -> {
+                            summaries.add((String) args[3]);
+                            yield null;
+                        }
+                        default -> throw new UnsupportedOperationException(method.getName());
                     });
         }
     }

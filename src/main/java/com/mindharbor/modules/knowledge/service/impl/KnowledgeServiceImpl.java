@@ -101,9 +101,19 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         } catch (RuntimeException exception) {
             document.setVectorStatus(KnowledgeDocument.VectorStatus.FAILED);
             knowledgeDocumentMapper.updateById(document);
+            adminOperationLogService.record(
+                    AdminOperationLog.Type.DOCUMENT,
+                    "knowledge_document",
+                    id,
+                    "向量化知识库文档失败");
             throw new IllegalStateException("知识库向量化失败", exception);
         }
         knowledgeDocumentMapper.updateById(document);
+        adminOperationLogService.record(
+                AdminOperationLog.Type.DOCUMENT,
+                "knowledge_document",
+                id,
+                "向量化知识库文档");
         return document;
     }
 
