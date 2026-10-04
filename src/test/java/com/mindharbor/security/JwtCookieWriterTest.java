@@ -20,6 +20,9 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
  * Cookie 名必须与解析端一致、作用域必须跟着 context-path 走、
  * 清除必须同时给空值与 Max-Age=0 且作用域与写入时相同。
  * 另外固定住 ServletContext 可作为构造参数被容器解析 —— 它是本类唯一的容器依赖。
+ *
+ * <p>下面断言里的 "mh_token" 刻意写成字面量、不引用 AuthCookie.NAME：本类守的是对外契约，
+ * 一旦改成引用常量，常量漂移时测试会跟着一起变，就再也卡不住漂移了。
  */
 @DisplayName("认证 Cookie 写入")
 class JwtCookieWriterTest {
