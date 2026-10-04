@@ -302,19 +302,6 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserVO> listUsers() {
-        return userMapper.selectList(null)
-                .stream()
-                .map(this::toView)
-                .toList();
-    }
-
-    @Override
-    public PageResult<UserVO> listUsers(int page, int size) {
-        return listUsers(page, size, null);
-    }
-
-    @Override
     public PageResult<UserVO> listUsers(int page, int size, String nickname) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);

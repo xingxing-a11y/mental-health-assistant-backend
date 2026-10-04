@@ -8,7 +8,6 @@ import com.mindharbor.modules.user.dto.PasswordUpdateRequest;
 import com.mindharbor.modules.user.dto.ProfileUpdateRequest;
 import com.mindharbor.modules.user.dto.UserStatusRequest;
 import com.mindharbor.modules.user.vo.UserVO;
-import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface UserService {
@@ -30,10 +29,6 @@ public interface UserService {
 
     /** 注销当前账号：只做匿名化，不删除会话、日记与测评记录。 */
     void deactivate();
-
-    List<UserVO> listUsers();
-
-    PageResult<UserVO> listUsers(int page, int size);
 
     PageResult<UserVO> listUsers(int page, int size, String nickname);
 
