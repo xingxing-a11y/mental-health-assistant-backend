@@ -4,11 +4,9 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 
-/** 统一解析请求携带的 JWT：优先取 mh_token Cookie，其次退回 Authorization 请求头。 */
+/** 统一解析请求携带的 JWT：优先取认证 Cookie，其次退回 Authorization 请求头。 */
 @Component
 public class JwtTokenResolver {
-
-    private static final String TOKEN_COOKIE_NAME = "mh_token";
 
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -27,7 +25,7 @@ public class JwtTokenResolver {
             return null;
         }
         for (Cookie cookie : cookies) {
-            if (TOKEN_COOKIE_NAME.equals(cookie.getName())) {
+            if (AuthCookie.NAME.equals(cookie.getName())) {
                 return cookie.getValue();
             }
         }

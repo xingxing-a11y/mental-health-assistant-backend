@@ -58,7 +58,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 令牌只存放在 HttpOnly + SameSite=Lax 的 Cookie 中，接口无会话状态，因此不需要 CSRF 令牌
+                // 令牌只存放在 HttpOnly + SameSite=Lax 的 Cookie 中（实现见 JwtCookieWriter），
+                // 接口无会话状态，因此不需要 CSRF 令牌
                 .csrf(csrf -> csrf.disable())
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())

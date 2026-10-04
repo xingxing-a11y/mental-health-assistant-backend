@@ -8,13 +8,12 @@ import com.mindharbor.modules.user.dto.RegisterRequest;
 import com.mindharbor.modules.user.service.UserService;
 import com.mindharbor.modules.user.vo.AuthResultVO;
 import com.mindharbor.modules.user.vo.UserVO;
+import com.mindharbor.security.JwtCookieWriter;
 import com.mindharbor.security.JwtTokenService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -29,26 +28,17 @@ public class UserController {
 
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
-    private static final String TOKEN_COOKIE_NAME = "mh_token";
-
-    private static final String TOKEN_COOKIE_PATH = "/api/v1";
-
     private final UserService userService;
     private final JwtTokenService jwtTokenService;
-    private final boolean secureCookie;
-
-    /** Cookie 有效期复用令牌过期时间，避免改了一处、另一处仍留旧值。 */
-    private final long tokenCookieMaxAgeSeconds;
+    private final JwtCookieWriter jwtCookieWriter;
 
     public UserController(
             UserService userService,
             JwtTokenService jwtTokenService,
-            @Value("${security.cookie.secure:false}") boolean secureCookie,
-            @Value("${security.jwt.expiration-seconds:7200}") long tokenCookieMaxAgeSeconds) {
+            JwtCookieWriter jwtCookieWriter) {
         this.userService = userService;
         this.jwtTokenService = jwtTokenService;
-        this.secureCookie = secureCookie;
-        this.tokenCookieMaxAgeSeconds = tokenCookieMaxAgeSeconds;
+        this.jwtCookieWriter = jwtCookieWriter;
     }
 
     @PostMapping("/auth/register")
@@ -57,7 +47,7 @@ public class UserController {
             HttpServletResponse response) {
         log.info("Register endpoint called, username={}", request.getUsername());
         UserVO user = userService.register(request);
-        addAuthCookie(
+        jwtCookieWriter.write(
                 response,
                 jwtTokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
         return ApiResponse.ok(new AuthResultVO(user));
@@ -69,7 +59,7 @@ public class UserController {
             HttpServletResponse response) {
         log.info("Login endpoint called, username={}", request.getUsername());
         UserVO user = userService.login(request);
-        addAuthCookie(
+        jwtCookieWriter.write(
                 response,
                 jwtTokenService.createToken(user.getId(), user.getUsername(), user.getRole()));
         return ApiResponse.ok(new AuthResultVO(user));
@@ -78,7 +68,7 @@ public class UserController {
     @PostMapping("/auth/logout")
     public ApiResponse<Void> logout(HttpServletResponse response) {
         log.info("Logout endpoint called");
-        response.addHeader("Set-Cookie", authCookie("", 0).toString());
+        jwtCookieWriter.clear(response);
         return ApiResponse.ok(null);
     }
 
@@ -112,21 +102,7 @@ public class UserController {
     public ApiResponse<Void> deactivate(HttpServletResponse response) {
         log.info("Deactivate current account");
         userService.deactivate();
-        response.addHeader("Set-Cookie", authCookie("", 0).toString());
+        jwtCookieWriter.clear(response);
         return ApiResponse.ok(null);
-    }
-
-    private void addAuthCookie(HttpServletResponse response, String token) {
-        response.addHeader("Set-Cookie", authCookie(token, tokenCookieMaxAgeSeconds).toString());
-    }
-
-    private ResponseCookie authCookie(String value, long maxAge) {
-        return ResponseCookie.from(TOKEN_COOKIE_NAME, value)
-                .httpOnly(true)
-                .secure(secureCookie)
-                .sameSite("Lax")
-                .path(TOKEN_COOKIE_PATH)
-                .maxAge(maxAge)
-                .build();
     }
 }
