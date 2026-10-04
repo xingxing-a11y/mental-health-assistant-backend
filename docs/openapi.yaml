@@ -1952,13 +1952,28 @@ components:
   schemas:
     RegisterRequest:
       type: object
-      required: [username, password, confirmPassword, nickname, gender, age]
+      required: [username, password, confirmPassword, nickname, age]
       properties:
-        username: { type: string, minLength: 3, maxLength: 32 }
-        password: { type: string, format: password, minLength: 6, maxLength: 64 }
+        username:
+          type: string
+          minLength: 6
+          maxLength: 32
+          pattern: '^(?=.*[A-Za-z0-9])[A-Za-z0-9@._-]*$'
+          description: '只能包含字母、数字和 @ . _ -，且至少含一个字母或数字'
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 32
+          pattern: '^[!-~]*$'
+          description: '只能包含 ASCII 可见字符，不含中文、空格与全角字符'
         confirmPassword: { type: string, format: password }
         nickname: { type: string }
-        gender: { type: string }
+        gender:
+          type: string
+          nullable: true
+          enum: ['', 男, 女, 不愿透露]
+          description: '注册时可传空串表示未选择；传非空值时必须为 男、女 或 不愿透露'
         age: { type: integer, minimum: 1, maximum: 120 }
     LoginRequest:
       type: object
@@ -1974,14 +1989,24 @@ components:
       type: object
       properties:
         nickname: { type: string, maxLength: 64, description: 用户名（数据库字段 nickname） }
-        gender: { type: string, enum: [男, 女, 不愿透露] }
+        gender:
+          type: string
+          nullable: true
+          enum: ['', 男, 女, 不愿透露]
+          description: '省略、null 或空串表示不修改；传非空值时必须为 男、女 或 不愿透露'
         age: { type: integer, minimum: 1, maximum: 150 }
     PasswordUpdateRequest:
       type: object
       required: [oldPassword, newPassword]
       properties:
         oldPassword: { type: string, format: password }
-        newPassword: { type: string, format: password, minLength: 6, maxLength: 128 }
+        newPassword:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 32
+          pattern: '^[!-~]*$'
+          description: '只能包含 ASCII 可见字符，不含中文、空格与全角字符'
     CreateSessionRequest:
       type: object
       properties:

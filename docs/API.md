@@ -38,6 +38,8 @@
 | GET | `/uploads/avatars/{filename}` | 读取头像图片，返回二进制内容，需登录 |
 | PUT | `/users/me/password` | 校验旧密码后修改密码 |
 
+注册与修改密码共用同一套格式规则（`RegisterRequest`、`PasswordUpdateRequest`）：账号 6~32 位，只允许字母、数字和 `@ . _ -`，且至少含一个字母或数字；密码 6~32 位，只允许 ASCII 可见字符（`U+0021`~`U+007E`），即不含中文、空格和全角字符。不满足时返回 `400`，`message` 为对应的中文提示。
+
 头像上传与读取说明：
 
 - 请求为 `multipart/form-data`，字段名固定为 `file`；仅接受 `image/jpeg`、`image/png`、`image/webp`，单文件最大 2MB，超限返回 400。
