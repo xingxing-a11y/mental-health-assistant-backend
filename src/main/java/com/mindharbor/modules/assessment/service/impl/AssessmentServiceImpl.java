@@ -264,6 +264,10 @@ public class AssessmentServiceImpl implements AssessmentService {
             throw new IllegalArgumentException("请完成全部题目后再提交");
         }
 
+        // 复用上面已填好选项的题目对象：选项不在 assessment_questions 表里，按 id 重新查一次
+        // 只会得到一个 options 恒为空的题目，后面的计分与「其他」校验都会误判为选项不存在。
+        Map<Long, AssessmentQuestion> questionsById = scaleQuestions.stream()
+                .collect(Collectors.toMap(AssessmentQuestion::getId, question -> question));
         Set<Long> answeredQuestionIds = new HashSet<>();
         for (AssessmentQuestion question : scaleQuestions) {
             maxScore += maxQuestionScore(question);
@@ -273,9 +277,10 @@ public class AssessmentServiceImpl implements AssessmentService {
                     || !answeredQuestionIds.add(answer.getQuestionId())) {
                 throw new IllegalArgumentException("题目答案存在重复或缺失");
             }
-            AssessmentQuestion question = assessmentQuestionMapper
-                    .findByIdAndScaleId(answer.getQuestionId(), request.getScaleId())
-                    .orElseThrow(() -> new IllegalArgumentException("题目不属于当前量表"));
+            AssessmentQuestion question = questionsById.get(answer.getQuestionId());
+            if (question == null) {
+                throw new IllegalArgumentException("题目不属于当前量表");
+            }
             String type = normalizeQuestionType(question.getType());
             if ("TEXT".equals(type)) {
                 if (answer.getTextAnswer() == null || answer.getTextAnswer().isBlank()) {
