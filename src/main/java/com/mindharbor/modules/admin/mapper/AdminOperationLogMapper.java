@@ -16,7 +16,7 @@ public interface AdminOperationLogMapper extends BaseMapper<AdminOperationLog> {
             @Param("startAt") Instant startAt,
             @Param("endAt") Instant endAt,
             @Param("limit") int limit,
-            @Param("offset") int offset);
+            @Param("offset") long offset);
 
     long countPage(
             @Param("type") String type,

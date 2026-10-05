@@ -57,7 +57,7 @@ public class FeedbackServiceImpl implements FeedbackService {
         int safeSize = normalizeSize(size);
         long total = feedbackMapper.countPage(normalizedStatus);
         List<FeedbackVO> items = feedbackMapper
-                .findPage(normalizedStatus, safeSize, safePage * safeSize)
+                .findPage(normalizedStatus, safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(this::toView)
                 .toList();

@@ -15,7 +15,7 @@ public interface RelaxRecordMapper extends BaseMapper<RelaxRecord> {
             @Param("userId") Long userId,
             @Param("type") String type,
             @Param("limit") int limit,
-            @Param("offset") int offset);
+            @Param("offset") long offset);
 
     long countByUserId(@Param("userId") Long userId, @Param("type") String type);
 

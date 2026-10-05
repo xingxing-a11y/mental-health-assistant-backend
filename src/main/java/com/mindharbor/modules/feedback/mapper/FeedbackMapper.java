@@ -13,7 +13,7 @@ public interface FeedbackMapper extends BaseMapper<Feedback> {
     List<Feedback> findPage(
             @Param("status") String status,
             @Param("limit") int limit,
-            @Param("offset") int offset);
+            @Param("offset") long offset);
 
     long countPage(@Param("status") String status);
 }

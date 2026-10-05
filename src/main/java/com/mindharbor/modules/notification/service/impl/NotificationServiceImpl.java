@@ -60,7 +60,7 @@ public class NotificationServiceImpl implements NotificationService {
         int safeSize = normalizeSize(size);
         long total = notificationMapper.countVisible(userId, now);
         List<NotificationVO> items = notificationMapper
-                .findVisible(userId, now, safeSize, safePage * safeSize)
+                .findVisible(userId, now, safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(this::toView)
                 .toList();
@@ -112,7 +112,7 @@ public class NotificationServiceImpl implements NotificationService {
         int safeSize = normalizeSize(size);
         long total = notificationMapper.countAll();
         List<NotificationVO> items = notificationMapper
-                .findPage(safeSize, safePage * safeSize)
+                .findPage(safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(this::toView)
                 .toList();

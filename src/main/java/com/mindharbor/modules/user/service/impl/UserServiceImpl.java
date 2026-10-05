@@ -315,7 +315,7 @@ public class UserServiceImpl implements UserService {
         }
         query.orderByDesc(User::getCreatedAt);
         List<User> users = userMapper.selectList(query);
-        int from = Math.min(safePage * safeSize, users.size());
+        int from = (int) Math.min((long) safePage * safeSize, users.size());
         int to = Math.min(from + safeSize, users.size());
         List<User> pageUsers = users.subList(from, to);
         long total = users.size();

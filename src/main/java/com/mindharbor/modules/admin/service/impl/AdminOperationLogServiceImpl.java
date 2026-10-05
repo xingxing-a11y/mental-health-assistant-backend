@@ -77,7 +77,7 @@ public class AdminOperationLogServiceImpl implements AdminOperationLogService {
         int safeSize = normalizeSize(size);
         long total = adminOperationLogMapper.countPage(normalizedType, startAt, endAt);
         List<AdminOperationLogVO> items = adminOperationLogMapper
-                .findPage(normalizedType, startAt, endAt, safeSize, safePage * safeSize)
+                .findPage(normalizedType, startAt, endAt, safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(entry -> new AdminOperationLogVO(
                         entry.getId(),

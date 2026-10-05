@@ -19,7 +19,7 @@ public interface StressLogMapper extends BaseMapper<StressLog> {
     List<StressLog> findByUserId(
             @Param("userId") Long userId,
             @Param("limit") int limit,
-            @Param("offset") int offset);
+            @Param("offset") long offset);
 
     @Select("SELECT COUNT(*) FROM stress_logs WHERE user_id = #{userId}")
     long countByUserId(@Param("userId") Long userId);

@@ -108,7 +108,7 @@ public class RelaxServiceImpl implements RelaxService {
         int safeSize = normalizeSize(size);
         long total = relaxRecordMapper.countByUserId(userId, normalizedType);
         List<RelaxRecordVO> items = relaxRecordMapper
-                .findByUserId(userId, normalizedType, safeSize, safePage * safeSize)
+                .findByUserId(userId, normalizedType, safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(record -> new RelaxRecordVO(
                         record.getId(),
@@ -143,7 +143,7 @@ public class RelaxServiceImpl implements RelaxService {
         int safeSize = normalizeSize(size);
         long total = stressLogMapper.countByUserId(userId);
         List<StressLogVO> items = stressLogMapper
-                .findByUserId(userId, safeSize, safePage * safeSize)
+                .findByUserId(userId, safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(log -> new StressLogVO(
                         log.getId(),

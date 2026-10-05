@@ -28,7 +28,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
             @Param("sessionId") Long sessionId,
             @Param("keyword") String keyword,
             @Param("limit") int limit,
-            @Param("offset") int offset);
+            @Param("offset") long offset);
 
     long countFavorites(
             @Param("userId") Long userId,

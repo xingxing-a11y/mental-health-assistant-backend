@@ -19,14 +19,14 @@ public interface NotificationMapper extends BaseMapper<Notification> {
             @Param("userId") Long userId,
             @Param("now") Instant now,
             @Param("limit") int limit,
-            @Param("offset") int offset);
+            @Param("offset") long offset);
 
     long countVisible(@Param("userId") Long userId, @Param("now") Instant now);
 
     /** 轻量未读数，供铃铛低频轮询。 */
     long countUnread(@Param("userId") Long userId, @Param("now") Instant now);
 
-    List<Notification> findPage(@Param("limit") int limit, @Param("offset") int offset);
+    List<Notification> findPage(@Param("limit") int limit, @Param("offset") long offset);
 
     long countAll();
 
