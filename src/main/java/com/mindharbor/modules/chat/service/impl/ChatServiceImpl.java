@@ -112,6 +112,7 @@ public class ChatServiceImpl implements ChatService {
                 .toList();
     }
 
+    /** 查看已归档会话，先判断是否存在该用户 */
     @Override
     public List<ChatSessionVO> archived() {
         return chatSessionMapper.findArchivedByUserIdOrderByLatestMessageAtDesc(currentUser().getId())
@@ -227,7 +228,7 @@ public class ChatServiceImpl implements ChatService {
         String normalizedKeyword = normalizeKeyword(keyword);
         long total = chatMessageMapper.countFavorites(userId, sessionId, normalizedKeyword);
         List<FavoriteMessageVO> items = chatMessageMapper
-                .findFavorites(userId, sessionId, normalizedKeyword, safeSize, safePage * safeSize)
+                .findFavorites(userId, sessionId, normalizedKeyword, safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(message -> new FavoriteMessageVO(
                         message.getId(),
@@ -276,6 +277,7 @@ public class ChatServiceImpl implements ChatService {
         String input = request == null ? "" : request.getContent();
         ChatSession session = getOwnedSession(id);
 
+        //向数据库插入消息
         ChatMessage userMessage = new ChatMessage();
         userMessage.setSessionId(session.getId());
         userMessage.setSession(session);
@@ -283,6 +285,7 @@ public class ChatServiceImpl implements ChatService {
         userMessage.setContent(input);
         chatMessageMapper.insert(userMessage);
 
+        //将用户发送的第一条消息作为会话名
         if (DEFAULT_SESSION_NAME.equals(session.getName()) && !input.isBlank()) {
             session.setName(toPreview(input));
             session.setPreview(toPreview(input));
@@ -308,6 +311,7 @@ public class ChatServiceImpl implements ChatService {
         session.setContextCleared(false);
         chatSessionMapper.updateById(session);
 
+        //ai流式回复并显示在对话框中
         Disposable subscription = aiConversationService.stream(input, context)
                 .subscribe(
                         chunk -> appendChunk(emitter, reply, chunk),
@@ -327,6 +331,7 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /** 触发危机对话直接回复并结束对话 */
     private void sendRiskAndComplete(
             SseEmitter emitter,
             ChatSession session,
@@ -348,6 +353,7 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /** 将ai的回复显示在对话框中并结束对话 */
     private void completeAssistantReply(
             SseEmitter emitter,
             ChatSession session,
@@ -393,6 +399,7 @@ public class ChatServiceImpl implements ChatService {
 
     /** 组装知识库、对话模式和历史对话上下文。 */
     private String buildKnowledgeContext(String query, ChatSession session) {
+        //向量库检索 → 最多3篇，取每篇 getText() → 空行拼接
         List<Document> documents;
         try {
             documents = vectorStore.similaritySearch(query);
@@ -409,6 +416,8 @@ public class ChatServiceImpl implements ChatService {
                         .limit(KNOWLEDGE_CONTEXT_LIMIT)
                         .collect(Collectors.joining("\n\n"));
 
+        //查会话消息,最多6条 → 格式化成 "角色: 内容" → 换行拼接
+        //清空上下文则无历史消息
         List<ChatMessage> historyMessages = session.isContextCleared()
                 ? List.of()
                 : chatMessageMapper.findBySessionIdOrderByCreatedAtAsc(session.getId());
@@ -418,6 +427,7 @@ public class ChatServiceImpl implements ChatService {
                 .map(message -> message.getRole() + ": " + message.getContent())
                 .collect(Collectors.joining("\n"));
 
+        //选择一种模式
         String modePrompt = session.getMode() == ChatSession.Mode.ANALYTICAL
                 ? "理性分析：结构化梳理问题，给出清晰可执行的建议"
                 : "温柔陪伴：使用温和、共情的表达，优先倾听和支持";
@@ -430,6 +440,7 @@ public class ChatServiceImpl implements ChatService {
                 + (history.isBlank() ? "无" : history);
     }
 
+    /** 显示消息在对话框 */
     private void send(SseEmitter emitter, String event, Object data) throws Exception {
         emitter.send(SseEmitter.event()
                 .name(event)

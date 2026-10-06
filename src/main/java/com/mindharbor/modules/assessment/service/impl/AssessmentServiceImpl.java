@@ -392,6 +392,7 @@ public class AssessmentServiceImpl implements AssessmentService {
                 .collect(Collectors.toList());
     }
 
+    /** 前端收藏问卷页面显示 */
     @Override
     public List<AssessmentFavoriteVO> favorites() {
         Map<Long, AssessmentScale> scales = assessmentScaleMapper.findAll()
