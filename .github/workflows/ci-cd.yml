@@ -1,0 +1,79 @@
+name: CI/CD · backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一分支的推送串行执行，避免两次部署打架
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 编译 + 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: mvn verify（含 64 条测试）
+        run: mvn -B -ntp verify
+
+      - name: 收集部署产物
+        run: |
+          mkdir -p deploy
+          cp target/assistant-backend-0.0.1-SNAPSHOT.jar deploy/app.jar
+          cp docker-compose.yml deploy/docker-compose.yml
+
+      - name: 上传产物（后续 job 下载，也可人工下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-deploy
+          path: deploy/
+          retention-days: 7
+
+  deploy:
+    name: 部署到阿里云
+    needs: build
+    # 只在 main 推送时部署；PR 只跑 CI
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-deploy
+          path: deploy
+
+      - name: 准备 SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: rsync 产物到服务器
+        run: |
+          SSHV="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes"
+          rsync -avz --no-perms -e "$SSHV" \
+            deploy/app.jar \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/mindharbor/backend/app.jar"
+          rsync -avz --no-perms -e "$SSHV" \
+            deploy/docker-compose.yml \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/mindharbor/docker-compose.yml"
+
+      - name: 重启后端容器
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=yes \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            'set -e; cd /opt/mindharbor && docker compose up -d && docker compose restart backend && sleep 8 && docker compose ps'
