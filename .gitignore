@@ -35,6 +35,16 @@ desktop.ini
 # User uploads
 uploads/
 
+# Docker Compose 数据卷（mysql / redis / chroma 的落盘目录）。
+# 必须锚定到仓库根：写成裸的 data/ 会匹配任意层级的同名目录。
+/data/
+
+# JVM 崩溃时的堆转储，可达 GB 级
+*.hprof
+
+# VS Code
+.vscode/
+
 # 本地运维笔记，不纳入版本控制；必须锚定到 docs/ 下，
 # 写成裸的 1 会匹配仓库里任意层级所有同名文件
 docs/1
