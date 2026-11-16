@@ -18,7 +18,6 @@ import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.modules.user.service.UserService;
 import com.mindharbor.modules.user.service.UserSettingsService;
 import com.mindharbor.modules.user.vo.UserVO;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -309,16 +308,15 @@ public class UserServiceImpl implements UserService {
         if (keyword.length() > 100) {
             keyword = keyword.substring(0, 100);
         }
-        LambdaQueryWrapper<User> query = new LambdaQueryWrapper<>();
-        if (!keyword.isEmpty()) {
-            query.like(User::getNickname, keyword);
-        }
-        query.orderByDesc(User::getCreatedAt);
-        List<User> users = userMapper.selectList(query);
-        int from = (int) Math.min((long) safePage * safeSize, users.size());
-        int to = Math.min(from + safeSize, users.size());
-        List<User> pageUsers = users.subList(from, to);
-        long total = users.size();
+        // 空关键词统一收敛成 null，避免 mapper 里再判一次空串
+        String searchKeyword = keyword.isEmpty() ? null : keyword;
+        long total = userMapper.countByNickname(searchKeyword);
+        // offset 必须以 long 参与乘法：int 乘法在 safePage ≥ 42,949,673（页长 50）时先溢出成负数
+        long offset = (long) safePage * safeSize;
+        // 越界页直接返回空，不做一次注定为空的查询
+        List<User> pageUsers = offset >= total
+                ? List.of()
+                : userMapper.pageByNickname(searchKeyword, safeSize, offset);
         long totalPages = (total + safeSize - 1) / safeSize;
         return new PageResult<>(
                 pageUsers.stream().map(this::toView).toList(),

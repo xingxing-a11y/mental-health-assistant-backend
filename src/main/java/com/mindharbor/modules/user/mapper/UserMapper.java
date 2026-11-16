@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+import java.util.List;
 import java.util.Optional;
 
 @Mapper
@@ -61,4 +62,36 @@ public interface UserMapper extends BaseMapper<User> {
             @Param("id") Long id,
             @Param("newUrl") String newUrl,
             @Param("expectedOldUrl") String expectedOldUrl);
+
+    /**
+     * 管理端用户列表的总数。{@code keyword} 为 {@code null} 时统计全表。
+     *
+     * <p>与 {@link #pageByNickname} 共用同一段 where 条件，两处必须同步修改，
+     * 否则总数与实际页内容会对不上（总数说 100 条，翻到最后一页却是空的）。
+     */
+    @Select("<script>SELECT COUNT(*) FROM users"
+            + "<where><if test='keyword != null'>"
+            + "nickname LIKE CONCAT('%', #{keyword}, '%')"
+            + "</if></where></script>")
+    long countByNickname(@Param("keyword") String keyword);
+
+    /**
+     * 按创建时间倒序取一页用户，分页在数据库完成。
+     *
+     * <p>排序追加 {@code id DESC} 作为次序键：{@code created_at} 相同时（批量导入常见）
+     * 仅按时间排序的结果在不同页之间不稳定，会出现同一条记录重复出现或被跳过。
+     *
+     * <p>{@code offset} 声明为 {@code long}：{@code safePage * safeSize} 若以 int 相乘，
+     * 页长 100 时 {@code page ≥ 21,474,837} 会先溢出成负数再落到 OFFSET 上。
+     */
+    @Select("<script>SELECT * FROM users"
+            + "<where><if test='keyword != null'>"
+            + "nickname LIKE CONCAT('%', #{keyword}, '%')"
+            + "</if></where>"
+            + " ORDER BY created_at DESC, id DESC"
+            + " LIMIT #{limit} OFFSET #{offset}</script>")
+    List<User> pageByNickname(
+            @Param("keyword") String keyword,
+            @Param("limit") int limit,
+            @Param("offset") long offset);
 }
