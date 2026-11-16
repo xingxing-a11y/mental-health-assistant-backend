@@ -20,6 +20,7 @@
     <springdoc.version>2.7.0</springdoc.version>
     <openpdf.version>2.0.3</openpdf.version>
     <aliyun-oss.version>3.18.2</aliyun-oss.version>
+    <jsoup.version>1.18.3</jsoup.version>
   </properties>
 
   <repositories>
@@ -153,6 +154,13 @@
     <dependency>
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-vector-store-chroma</artifactId>
+    </dependency>
+
+    <!-- 文章正文白名单清洗：前台以 HTML 渲染富文本，存储型 XSS 必须在这一层拦住。 -->
+    <dependency>
+      <groupId>org.jsoup</groupId>
+      <artifactId>jsoup</artifactId>
+      <version>${jsoup.version}</version>
     </dependency>
 
     <!-- 测试：JUnit 5、AssertJ 与 Spring 测试支持。仅测试期可见，不进运行期依赖。 -->
