@@ -108,7 +108,8 @@ class PaginationOffsetOverflowTest {
                 null,
                 currentUser(USER_ID),
                 null,
-                null);
+                null,
+                null);   // RiskAlertService：收藏路径不投递预警
 
         service.favoriteMessages(HUGE_PAGE, SIZE, null, null);
 

@@ -5,10 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindharbor.modules.risk.entity.CareFollowup;
 import com.mindharbor.modules.risk.entity.RiskAlert;
 import com.mindharbor.modules.risk.event.RiskAlertEvent;
+import com.mindharbor.modules.risk.event.RiskAlertIds;
 import com.mindharbor.modules.risk.mapper.CareFollowupMapper;
 import com.mindharbor.modules.risk.mapper.RiskAlertMapper;
 import com.mindharbor.modules.risk.mq.RiskMqConfig;
 import com.mindharbor.modules.risk.service.RiskAlertService;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +75,48 @@ public class RiskAlertServiceImpl implements RiskAlertService {
         // 补偿路径不能走 publish：那边第一句 insert 会撞唯一键然后直接返回，消息永远发不出去。
         riskAlertMapper.incrementPublishAttempts(event.getAlertId());
         sendQuietly(event);
+    }
+
+    @Override
+    @Transactional
+    public boolean publishChatHighRisk(Long userId, long messageId, long sessionId) {
+        RiskAlertEvent event = baseEvent(userId, RiskAlertEvent.Source.CHAT_HIGH);
+        event.setAlertId(RiskAlertIds.chat(messageId));
+        // 摘要只描述事件本身，绝不写入用户原话。
+        event.setSummary("对话内容命中高危词");
+        event.setRefs(Map.of(
+                "messageId", String.valueOf(messageId),
+                "sessionId", String.valueOf(sessionId)));
+        return publish(event);
+    }
+
+    @Override
+    @Transactional
+    public boolean publishAssessmentHighRisk(Long userId, long resultId, int standardScore) {
+        RiskAlertEvent event = baseEvent(userId, RiskAlertEvent.Source.ASSESSMENT_HIGH);
+        event.setAlertId(RiskAlertIds.assessment(resultId));
+        event.setSummary("测评标准分 " + standardScore + "，达到关注阈值");
+        event.setRefs(Map.of("resultId", String.valueOf(resultId)));
+        return publish(event);
+    }
+
+    @Override
+    @Transactional
+    public boolean publishDiaryStreak(Long userId, LocalDate day, int negativeDays) {
+        RiskAlertEvent event = baseEvent(userId, RiskAlertEvent.Source.DIARY_STREAK);
+        event.setAlertId(RiskAlertIds.diary(userId, day));
+        event.setSummary("连续 " + negativeDays + " 天记录负面情绪");
+        event.setRefs(Map.of("day", day.toString()));
+        return publish(event);
+    }
+
+    private static RiskAlertEvent baseEvent(Long userId, RiskAlertEvent.Source source) {
+        RiskAlertEvent event = new RiskAlertEvent();
+        event.setUserId(userId);
+        event.setSource(source);
+        event.setLevel(RiskAlertEvent.Level.HIGH);
+        event.setOccurredAt(Instant.now());
+        return event;
     }
 
     /** 事务提交后再投递，避免"消息已发、写库回滚"的幽灵事件。 */

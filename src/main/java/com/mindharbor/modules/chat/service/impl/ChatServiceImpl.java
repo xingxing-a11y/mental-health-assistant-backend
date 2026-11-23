@@ -16,6 +16,7 @@ import com.mindharbor.modules.chat.service.SensitiveWordService;
 import com.mindharbor.modules.chat.vo.ChatSessionVO;
 import com.mindharbor.modules.chat.vo.FavoriteMessageVO;
 import com.mindharbor.modules.chat.vo.SensitiveCheckVO;
+import com.mindharbor.modules.risk.service.RiskAlertService;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.security.CurrentUserProvider;
@@ -63,6 +64,7 @@ public class ChatServiceImpl implements ChatService {
     private final CurrentUserProvider currentUserProvider;
     private final ObjectMapper objectMapper;
     private final VectorStore vectorStore;
+    private final RiskAlertService riskAlertService;
 
     public ChatServiceImpl(
             ChatSessionMapper chatSessionMapper,
@@ -72,7 +74,8 @@ public class ChatServiceImpl implements ChatService {
             SensitiveWordService sensitiveWordService,
             CurrentUserProvider currentUserProvider,
             ObjectMapper objectMapper,
-            @Lazy VectorStore vectorStore) {
+            @Lazy VectorStore vectorStore,
+            RiskAlertService riskAlertService) {
         this.chatSessionMapper = chatSessionMapper;
         this.chatMessageMapper = chatMessageMapper;
         this.userMapper = userMapper;
@@ -81,6 +84,7 @@ public class ChatServiceImpl implements ChatService {
         this.currentUserProvider = currentUserProvider;
         this.objectMapper = objectMapper;
         this.vectorStore = vectorStore;
+        this.riskAlertService = riskAlertService;
     }
 
     private User currentUser() {
@@ -295,6 +299,8 @@ public class ChatServiceImpl implements ChatService {
         // 预校验接口只做提示，对话主接口必须复用同一套服务端判定
         SensitiveCheckVO sensitiveCheck = sensitiveWordService.inspectAndAudit(input, session.getId());
         if (sensitiveCheck.getLevel() == SensitiveCheckVO.Level.HIGH) {
+            // 先投递预警，再返回危机提示：投递内部已 try-catch，不会挡住下面这句。
+            publishHighRiskQuietly(userMessage, session);
             sendRiskAndComplete(emitter, session, userMessage, sensitiveCheck);
             return emitter;
         }
@@ -328,6 +334,22 @@ public class ChatServiceImpl implements ChatService {
             send(emitter, "message", Map.of("content", chunk));
         } catch (Exception exception) {
             emitter.completeWithError(exception);
+        }
+    }
+
+    /**
+     * 投递对话高危事件。
+     *
+     * <p>整段包 try-catch：MQ 不可用时绝不能影响危机提示返回给用户——那是本系统里唯一不能失败的动作。
+     * 事件本身可重建（消息已落库），但"没把热线递到用户眼前"是不可挽回的。
+     */
+    private void publishHighRiskQuietly(ChatMessage userMessage, ChatSession session) {
+        try {
+            riskAlertService.publishChatHighRisk(
+                    session.getUserId(), userMessage.getId(), session.getId());
+        } catch (RuntimeException exception) {
+            log.warn("[risk-mq] publish chat high risk failed, messageId={}",
+                    userMessage.getId(), exception);
         }
     }
 

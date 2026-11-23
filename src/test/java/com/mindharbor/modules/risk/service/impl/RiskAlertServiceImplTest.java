@@ -12,6 +12,7 @@ import com.mindharbor.modules.risk.mapper.RiskAlertMapper;
 import com.mindharbor.modules.risk.mq.RiskMqConfig;
 import java.lang.reflect.Proxy;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -163,6 +164,44 @@ class RiskAlertServiceImplTest {
         assertEquals(event.getOccurredAt().plusMillis(DELAY_MILLIS), followup.getDueAt());
         assertEquals(CareFollowup.Status.PENDING, followup.getStatus());
         assertEquals("assessment:7", followup.getAlertId());
+    }
+
+    @Test
+    @DisplayName("对话高危：幂等键取消息编号，摘要不写用户原话")
+    void chatHighRiskEventShape() {
+        service.publishChatHighRisk(9L, 42L, 7L);
+
+        RiskAlert entity = insertedAlerts.get(0);
+        assertEquals("chat:42", entity.getAlertId(), "同一条消息只能产生一个幂等键");
+        assertEquals(RiskAlertEvent.Source.CHAT_HIGH, entity.getSource());
+        assertEquals(RiskAlertEvent.Level.HIGH, entity.getLevel());
+        assertEquals("对话内容命中高危词", entity.getSummary(), "摘要必须是描述，不能是用户原话");
+        assertTrue(entity.getRefs().contains("42"), "refs 要带上 messageId，便于回溯");
+        assertEquals(0, insertedFollowups.size(), "对话高危不产生 24h 回访");
+    }
+
+    @Test
+    @DisplayName("测评高危：幂等键取结果编号，描述里带分数")
+    void assessmentHighRiskEventShape() {
+        service.publishAssessmentHighRisk(9L, 7L, 82);
+
+        RiskAlert entity = insertedAlerts.get(0);
+        assertEquals("assessment:7", entity.getAlertId());
+        assertEquals(RiskAlertEvent.Source.ASSESSMENT_HIGH, entity.getSource());
+        assertTrue(entity.getSummary().contains("82"), "描述里带分数便于管理员判断严重程度");
+        assertEquals(1, insertedFollowups.size(), "测评高危要安排 24h 回访");
+    }
+
+    @Test
+    @DisplayName("日记连击：幂等键按用户+日期，同一天重跑不产生第二条")
+    void diaryStreakEventShape() {
+        service.publishDiaryStreak(9L, LocalDate.of(2026, 11, 23), 3);
+
+        RiskAlert entity = insertedAlerts.get(0);
+        assertEquals("diary:9:20261123", entity.getAlertId());
+        assertEquals(RiskAlertEvent.Source.DIARY_STREAK, entity.getSource());
+        assertTrue(entity.getSummary().contains("3"));
+        assertEquals(1, insertedFollowups.size());
     }
 
     private void commit() {
