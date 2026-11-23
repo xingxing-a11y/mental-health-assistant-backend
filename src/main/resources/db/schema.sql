@@ -304,3 +304,61 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMP(6) NOT NULL,
     PRIMARY KEY (setting_key)
 ) ENGINE = InnoDB;
+
+-- 高危信号预警事件链（详见 migrations/V20261123_01__add_risk_alert_tables.sql）
+-- 事件主表同时是发布的 outbox：发布失败落 publish_status=FAILED，由补偿任务重投。
+CREATE TABLE IF NOT EXISTS risk_alerts (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    alert_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    source VARCHAR(24) NOT NULL,
+    level VARCHAR(16) NOT NULL,
+    summary VARCHAR(500) NOT NULL,
+    refs VARCHAR(255) NULL,
+    occurred_at TIMESTAMP(6) NOT NULL,
+    publish_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    publish_attempts INT NOT NULL DEFAULT 0,
+    archived_at TIMESTAMP(6) NULL,
+    created_at TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_risk_alerts_alert_id (alert_id),
+    KEY idx_risk_alerts_publish (publish_status, created_at),
+    KEY idx_risk_alerts_user_created (user_id, created_at),
+    KEY idx_risk_alerts_source_created (source, created_at),
+    CONSTRAINT fk_risk_alerts_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS risk_alert_consumptions (
+    alert_id VARCHAR(64) NOT NULL,
+    consumer VARCHAR(32) NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (alert_id, consumer),
+    KEY idx_risk_consumptions_created (created_at)
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS care_followups (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    alert_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    due_at TIMESTAMP(6) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    sent_at TIMESTAMP(6) NULL,
+    created_at TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_care_followups_alert (alert_id),
+    KEY idx_care_followups_due (status, due_at),
+    CONSTRAINT fk_care_followups_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS risk_alert_daily_stats (
+    stat_date DATE NOT NULL,
+    source VARCHAR(24) NOT NULL,
+    total INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (stat_date, source)
+) ENGINE = InnoDB;
+
