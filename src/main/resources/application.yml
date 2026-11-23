@@ -16,7 +16,9 @@ spring:
   task:
     scheduling:
       pool:
-        size: ${TASK_SCHEDULING_POOL_SIZE:2}
+        # 定时任务从 2 个加到 5 个（新增补投、回访兜底、连击扫描）：
+        # 仍留 2 个线程会互相排队，让每分钟的补投被其它任务拖后。
+        size: ${TASK_SCHEDULING_POOL_SIZE:4}
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/mindharbor?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:}
