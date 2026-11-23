@@ -11,7 +11,9 @@ import com.mindharbor.modules.chat.service.SensitiveWordService;
 import com.mindharbor.modules.chat.vo.SensitiveCheckVO;
 import com.mindharbor.security.CurrentUserProvider;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.mindharbor.modules.chat.cache.SensitiveWordCacheEntry;
 import org.slf4j.Logger;
@@ -116,14 +118,14 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
         try {
             List<SensitiveWord> cached = readEnabledCache();
             if (cached != null) {
-                return cached;
+                return mergeWithBuiltIn(cached);
             }
             List<SensitiveWord> words = cacheService.loadWithSingleFlight(
                     CacheKeys.SENSITIVE_WORD_ENABLED,
                     this::readEnabledCache,
                     this::loadEnabledWordsFromDatabase);
             if (words != null && !words.isEmpty()) {
-                return words;
+                return mergeWithBuiltIn(words);
             }
         } catch (RuntimeException exception) {
             // 词库异常信息里可能带上敏感词原文，日志只记录异常类型，完整堆栈放到 DEBUG。
@@ -132,6 +134,30 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
             log.debug("Sensitive word dictionary failure detail", exception);
         }
         return BUILT_IN_WORDS;
+    }
+
+    /**
+     * 库里的词与内置兜底表合并：两边都参与匹配，同一个词取更高等级。
+     *
+     * <p>不能"库非空就整体丢掉内置表"——运维只录了一条 CARE 词时，内置的 6 个 HIGH 词
+     * 会全部失效，高危预警一次都不会触发。安全场景漏报的代价远大于误报。
+     */
+    private static List<SensitiveWord> mergeWithBuiltIn(List<SensitiveWord> loaded) {
+        Map<String, SensitiveWord> byWord = new LinkedHashMap<>();
+        for (SensitiveWord word : BUILT_IN_WORDS) {
+            byWord.put(word.getWord(), word);
+        }
+        for (SensitiveWord word : loaded) {
+            if (word == null || word.getWord() == null || word.getWord().isBlank()) {
+                continue;
+            }
+            SensitiveWord existing = byWord.get(word.getWord());
+            // 库里新增的词直接补进来；同词只有在库里级别更高时才覆盖内置。
+            if (existing == null || word.getLevel() == SensitiveWord.Level.HIGH) {
+                byWord.put(word.getWord(), word);
+            }
+        }
+        return new ArrayList<>(byWord.values());
     }
 
     /** 读取启用词库缓存：未命中或缓存的 JSON 已损坏时返回 null，交给单飞回源决定是否查库。 */
