@@ -9,8 +9,8 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,7 +48,7 @@ public class AdminRiskAlertController {
     }
 
     /** 人工标记已处理。重复调用不会覆盖首次处理时间。 */
-    @PatchMapping("/{id}/archive")
+    @PutMapping("/{id}/archive")
     public ApiResponse<Void> archive(@PathVariable Long id) {
         log.info("Archive risk alert, id={}", id);
         adminRiskAlertService.archive(id);

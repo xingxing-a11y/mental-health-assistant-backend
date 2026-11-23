@@ -273,6 +273,9 @@
 | GET | `/admin/feedbacks` | 反馈工单分页列表，支持 `status` 过滤 |
 | PUT | `/admin/feedbacks/{id}` | 处理工单：`status` = PENDING / PROCESSED / REJECTED，`remark` ≤ 500 字 |
 | GET | `/admin/operation-logs` | 管理员操作审计分页查询，支持 `type`、`startDate`、`endDate` |
+| GET | `/admin/risk-alerts?page=0&size=20` | 高危预警列表，按事件时间倒序；`summary` 只描述事件类型，不含用户原文 |
+| GET | `/admin/risk-alerts/stats?days=30` | 按日统计各来源告警数，`days` 取值 1~90 |
+| PUT | `/admin/risk-alerts/{id}/archive` | 人工标记已处理；重复调用幂等，不覆盖首次处理时间 |
 | GET/PUT | `/admin/knowledge-settings` | 知识库分片参数全局配置 |
 
 推送过期时间规则：
@@ -441,6 +444,8 @@ mvn test
 | --- | --- | --- |
 | `DB_URL` | 本机 `mindharbor` 库 | MySQL 连接串，时区固定 `Asia/Shanghai` |
 | `DB_USERNAME`、`DB_PASSWORD` | 空 | 数据库账号 |
+| `DB_POOL_SIZE` | `20` | HikariCP 连接池上限；缺省值 10 会成为「每请求回源数据库」这类端点的吞吐天花板 |
+| `DB_POOL_MIN_IDLE` | `5` | 常驻空闲连接数；不设置时等于池上限，空闲时同样占用那么多个连接 |
 | `REDIS_HOST`、`REDIS_PORT` | `localhost`、`6379` | Redis 地址 |
 | `REDIS_PASSWORD` | 空 | Redis 密码，未启用密码时留空 |
 | `REDIS_DATABASE` | `0` | Redis 逻辑库编号，便于与其他应用共用实例时隔离 |

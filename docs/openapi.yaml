@@ -1774,6 +1774,77 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /admin/risk-alerts:
+    get:
+      tags: [Admin Risk Alert]
+      summary: 分页查询高危预警
+      description: |
+        按事件发生时间倒序。summary 只描述事件类型（例如「对话内容命中高危词」），
+        不含用户原文；refs 这类内部关联编号不对外暴露。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/RiskAlertPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/risk-alerts/stats:
+    get:
+      tags: [Admin Risk Alert]
+      summary: 按日统计高危预警数量
+      description: |
+        返回最近 N 天每个来源的告警条数，供趋势图使用。
+        统计写入走 `INSERT ... ON DUPLICATE KEY UPDATE total = total + 1`，并发不丢计数。
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: 统计天数，取值 1~90，默认 30
+          schema: { type: integer, default: 30 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RiskAlertDailyStat' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/risk-alerts/{id}/archive:
+    put:
+      tags: [Admin Risk Alert]
+      summary: 人工标记预警已处理
+      description: |
+        只写入 archived_at，不删除记录。重复调用幂等：已处理的预警不会覆盖首次处理时间。
+      parameters:
+        - $ref: '#/components/parameters/RiskAlertId'
+      responses:
+        '200':
+          description: 处理成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /admin/knowledge-settings:
     get:
       tags: [Admin System Setting]
@@ -1882,6 +1953,11 @@ components:
       required: true
       schema: { type: integer, format: int64 }
     FeedbackId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    RiskAlertId:
       name: id
       in: path
       required: true
@@ -2417,6 +2493,57 @@ components:
         size: { type: integer }
         total: { type: integer, format: int64 }
         totalPages: { type: integer }
+    RiskAlert:
+      type: object
+      required: [id, alertId, userId, source, level, summary, publishStatus, occurredAt, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        alertId:
+          type: string
+          description: 幂等键，形如 chat:211 / assessment:7 / diary:9:20261123
+        userId: { type: integer, format: int64 }
+        source:
+          type: string
+          description: 告警来源
+          enum: [CHAT_HIGH, ASSESSMENT_HIGH, DIARY_STREAK]
+        level:
+          type: string
+          enum: [HIGH, MEDIUM]
+        summary:
+          type: string
+          description: 只描述事件类型，不含用户原文
+        publishStatus:
+          type: string
+          description: 投递状态；PENDING/FAILED 会被补偿任务重投
+          enum: [PENDING, SENT, FAILED]
+        publishAttempts: { type: integer }
+        occurredAt: { type: string, format: date-time }
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 管理员人工标记已处理的时间；未处理为 null
+        createdAt: { type: string, format: date-time }
+    RiskAlertPage:
+      type: object
+      required: [items, page, size, total, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/RiskAlert' }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    RiskAlertDailyStat:
+      type: object
+      required: [statDate, source, total]
+      properties:
+        statDate: { type: string, format: date }
+        source:
+          type: string
+          enum: [CHAT_HIGH, ASSESSMENT_HIGH, DIARY_STREAK]
+        total: { type: integer }
     KnowledgeSettings:
       type: object
       required: [chunkSize, chunkOverlap]
