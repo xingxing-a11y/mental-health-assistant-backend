@@ -59,6 +59,11 @@ public class RiskAlertServiceImpl implements RiskAlertService {
         } catch (DuplicateKeyException duplicate) {
             // 唯一键冲突 = 这条事件已经发过，幂等返回。
             return false;
+        } catch (RuntimeException failure) {
+            // 写库失败也不外抛：调用方是对话与测评的主流程，
+            // 预警是尽力而为，绝不能因为预警写不进去而丢用户的核心数据。
+            log.warn("[risk-mq] persist failed, alertId={}", event.getAlertId(), failure);
+            return false;
         }
 
         // 对话高危当场已经给了危机提示与热线，24h 再推一条属于重复打扰，所以不建回访任务。

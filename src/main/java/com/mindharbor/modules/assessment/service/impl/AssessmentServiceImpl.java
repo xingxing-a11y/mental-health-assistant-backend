@@ -21,6 +21,8 @@ import com.mindharbor.modules.assessment.entity.AssessmentFavorite;
 import com.mindharbor.modules.assessment.vo.AssessmentComparisonVO;
 import com.mindharbor.modules.assessment.vo.AssessmentFavoriteVO;
 import com.mindharbor.modules.assessment.vo.AssessmentRecommendationVO;
+import com.mindharbor.modules.risk.service.AssessmentRiskEvaluator;
+import com.mindharbor.modules.risk.service.RiskAlertService;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.modules.assessment.entity.AssessmentResult;
 import com.mindharbor.modules.assessment.service.AssessmentService;
@@ -37,6 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.transaction.annotation.Transactional;
 import com.mindharbor.security.CurrentUserProvider;
@@ -66,6 +69,11 @@ public class AssessmentServiceImpl implements AssessmentService {
     private final AiConversationService aiConversationService;
     private final VectorStore vectorStore;
 
+    private final RiskAlertService riskAlertService;
+
+    /** 标准分阈值（0~100），达到即投递高危事件。 */
+    private final double riskAssessmentThreshold;
+
     public AssessmentServiceImpl(
             AssessmentScaleMapper assessmentScaleMapper,
             AssessmentQuestionMapper assessmentQuestionMapper,
@@ -76,7 +84,9 @@ public class AssessmentServiceImpl implements AssessmentService {
             AdminOperationLogService adminOperationLogService,
             CurrentUserProvider currentUserProvider,
             AiConversationService aiConversationService,
-            @Lazy VectorStore vectorStore) {
+            @Lazy VectorStore vectorStore,
+            RiskAlertService riskAlertService,
+            @Value("${risk.alert.assessment.threshold:70}") double riskAssessmentThreshold) {
         this.assessmentScaleMapper = assessmentScaleMapper;
         this.assessmentQuestionMapper = assessmentQuestionMapper;
         this.assessmentResultMapper = assessmentResultMapper;
@@ -87,6 +97,8 @@ public class AssessmentServiceImpl implements AssessmentService {
         this.currentUserProvider = currentUserProvider;
         this.aiConversationService = aiConversationService;
         this.vectorStore = vectorStore;
+        this.riskAlertService = riskAlertService;
+        this.riskAssessmentThreshold = riskAssessmentThreshold;
     }
 
     @Override
@@ -328,6 +340,7 @@ public class AssessmentServiceImpl implements AssessmentService {
         result.setRangeDescription(range + "，结果仅供参考，不构成诊断");
         result.setSuggestions(String.join(SUGGESTION_SEPARATOR, suggestions));
         assessmentResultMapper.insert(result);
+        publishHighRiskIfNeeded(result, score, maxScore);
 
         return new AssessmentReportVO(
                 result.getId(),
@@ -335,6 +348,22 @@ public class AssessmentServiceImpl implements AssessmentService {
                 result.getStandardScore(),
                 result.getRangeDescription(),
                 suggestions);
+    }
+
+    /**
+     * 标准分达到阈值时投递高危事件。
+     *
+     * <p>用标准分而不是原始分：不同量表满分不同（27 / 80），拿原始分跟固定阈值比没有意义；
+     * 纯 TEXT/MATRIX 量表满分为 0，{@link AssessmentRiskEvaluator} 会直接判否。
+     *
+     * <p>投递失败不影响测评结果：{@code RiskAlertService} 内部已兜住所有异常。
+     */
+    private void publishHighRiskIfNeeded(AssessmentResult result, int score, int maxScore) {
+        if (!AssessmentRiskEvaluator.isHighRisk(score, maxScore, riskAssessmentThreshold)) {
+            return;
+        }
+        riskAlertService.publishAssessmentHighRisk(
+                result.getUserId(), result.getId(), result.getStandardScore().intValue());
     }
 
     @Override

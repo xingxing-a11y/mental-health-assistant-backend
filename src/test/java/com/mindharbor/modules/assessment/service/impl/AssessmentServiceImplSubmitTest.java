@@ -14,6 +14,7 @@ import com.mindharbor.modules.assessment.mapper.AssessmentQuestionMapper;
 import com.mindharbor.modules.assessment.mapper.AssessmentResultMapper;
 import com.mindharbor.modules.assessment.mapper.AssessmentScaleMapper;
 import com.mindharbor.modules.assessment.vo.AssessmentReportVO;
+import com.mindharbor.modules.risk.service.RiskAlertService;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.security.CurrentUserProvider;
@@ -46,6 +47,44 @@ class AssessmentServiceImplSubmitTest {
     private static final long SCALE_ID = 1L;
 
     private static final long USER_ID = 7L;
+
+    @Test
+    @DisplayName("标准分达到阈值：投递高危事件，幂等键取结果编号")
+    void highStandardScorePublishesAlert() {
+        Fixture fixture = new Fixture()
+                .question(question(11L, "SINGLE"))
+                .options(11L, option(101L, 11L, "偶尔", 1), option(102L, 11L, "经常", 3));
+
+        fixture.submit(answerWithOption(11L, 102L));   // 3/3 = 100%
+
+        assertEquals(List.of("assessment:901"), fixture.publishedAlertIds);
+    }
+
+    @Test
+    @DisplayName("标准分低于阈值：不投递")
+    void lowStandardScoreDoesNotPublish() {
+        Fixture fixture = new Fixture()
+                .question(question(11L, "SINGLE"))
+                .options(11L, option(101L, 11L, "偶尔", 1), option(102L, 11L, "经常", 3));
+
+        fixture.submit(answerWithOption(11L, 101L));   // 1/3 ≈ 33%
+
+        assertEquals(0, fixture.publishedAlertIds.size(), "33% 远低于 70% 阈值");
+    }
+
+    @Test
+    @DisplayName("纯 TEXT 量表满分为 0：永不投递")
+    void textOnlyScaleNeverPublishes() {
+        Fixture fixture = new Fixture().question(question(11L, "TEXT"));
+        AssessmentSubmitRequest.Answer answer = new AssessmentSubmitRequest.Answer();
+        answer.setQuestionId(11L);
+        answer.setTextAnswer("最近两周入睡困难，白天容易疲惫。");
+
+        fixture.submit(answer);
+
+        assertEquals(0, fixture.publishedAlertIds.size(),
+                "满分为 0 算不出比例，不能按原始分误判");
+    }
 
     @Test
     @DisplayName("单选题：从已填充的题目对象取选项，按选项分值计分")
@@ -253,6 +292,9 @@ class AssessmentServiceImplSubmitTest {
 
         private final FakeOptionMapper optionMapper = new FakeOptionMapper();
 
+        /** 记录投递过的高危事件，用于断言阈值判定。 */
+        private final List<String> publishedAlertIds = new ArrayList<>();
+
         private Fixture question(AssessmentQuestion question) {
             questionMapper.questions.add(question);
             return this;
@@ -278,7 +320,26 @@ class AssessmentServiceImplSubmitTest {
                     null,   // AdminOperationLogService：提交路径不写审计
                     currentUser(USER_ID),
                     null,   // AiConversationService：提交路径不生成解读
-                    null);  // VectorStore：提交路径不检索知识库
+                    null,   // VectorStore：提交路径不检索知识库
+                    riskAlertService(),
+                    70D);   // 标准分阈值
+        }
+
+        /** 只关心 publishAssessmentHighRisk 是否被调用、幂等键对不对。 */
+        private RiskAlertService riskAlertService() {
+            return (RiskAlertService) Proxy.newProxyInstance(
+                    RiskAlertService.class.getClassLoader(),
+                    new Class<?>[] {RiskAlertService.class},
+                    (proxy, method, args) -> {
+                        if (method.getDeclaringClass() == Object.class) {
+                            return null;
+                        }
+                        if ("publishAssessmentHighRisk".equals(method.getName())) {
+                            publishedAlertIds.add("assessment:" + args[1]);
+                            return true;
+                        }
+                        return method.getReturnType() == boolean.class ? Boolean.FALSE : null;
+                    });
         }
     }
 
