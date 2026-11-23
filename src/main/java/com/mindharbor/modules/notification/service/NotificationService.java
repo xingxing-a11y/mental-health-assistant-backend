@@ -18,6 +18,16 @@ public interface NotificationService {
 
     NotificationVO push(NotificationPushRequest request);
 
+    /**
+     * 系统级定向推送，不依赖请求上下文。
+     *
+     * <p>供 MQ 消费者与定时任务调用：{@link #push} 内部会读 {@code SecurityContextHolder} 填操作人，
+     * 在消费线程里没有安全上下文，直接调它会抛「当前请求用户身份无效」。
+     *
+     * <p>系统推送不写管理操作日志——没有操作人可记。
+     */
+    void pushSystem(Long targetUserId, String title, String content);
+
     PageResult<NotificationVO> adminList(int page, int size);
 
     void revoke(long notificationId);

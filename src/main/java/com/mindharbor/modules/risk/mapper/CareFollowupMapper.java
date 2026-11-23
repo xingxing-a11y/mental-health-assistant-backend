@@ -29,6 +29,11 @@ public interface CareFollowupMapper extends BaseMapper<CareFollowup> {
             + "WHERE id = #{id} AND status = 'PENDING'")
     int markSent(@Param("id") Long id, @Param("sentAt") Instant sentAt);
 
+    /** 用户已注销时不再打扰，标记跳过；条件同样是 PENDING，重复调用幂等。 */
+    @Update("UPDATE care_followups SET status = 'SKIPPED' "
+            + "WHERE id = #{id} AND status = 'PENDING'")
+    int markSkipped(@Param("id") Long id);
+
     /** 兜底扫描：到期但仍是 PENDING 的任务（延迟消息丢失时靠它补发）。 */
     @Select("SELECT * FROM care_followups "
             + "WHERE status = 'PENDING' AND due_at <= #{now} "

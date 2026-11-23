@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 通知业务实现：可见性、过期与已读判定都在 service 层完成。 */
 @Service
@@ -104,6 +105,32 @@ public class NotificationServiceImpl implements NotificationService {
                 notification.getId(),
                 describeTarget(notification));
         return toView(notification);
+    }
+
+    @Override
+    @Transactional
+    public void pushSystem(Long targetUserId, String title, String content) {
+        if (targetUserId == null) {
+            throw new IllegalArgumentException("系统通知必须指定接收用户");
+        }
+        if (title == null || title.isBlank() || content == null || content.isBlank()) {
+            throw new IllegalArgumentException("系统通知的标题与内容不能为空");
+        }
+        Notification notification = new Notification();
+        notification.setScope(Notification.Scope.USER);
+        notification.setTargetUserId(targetUserId);
+        // 列约束是 VARCHAR(200)/VARCHAR(2000)，超长直接截断，避免整条通知写不进去。
+        notification.setTitle(clip(title, 200));
+        notification.setContent(clip(content, 2000));
+        // 系统触发没有操作人；这里绝不能调 currentUserProvider —— 消费线程没有安全上下文。
+        notification.setCreatedBy(null);
+        notification.setExpireAt(Instant.now().plus(DEFAULT_EXPIRE_DAYS, ChronoUnit.DAYS));
+        notificationMapper.insert(notification);
+        // 不写 admin_operation_logs：那条链路同样依赖操作人身份，而且系统通知不是管理动作。
+    }
+
+    private static String clip(String value, int maxLength) {
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
     @Override
