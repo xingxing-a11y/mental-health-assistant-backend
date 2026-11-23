@@ -93,6 +93,7 @@ mysql -u root -p mindharbor < src/main/resources/db/schema.sql
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
+| `DB_POOL_SIZE` / `DB_POOL_MIN_IDLE` | `20` / `5` | HikariCP 连接池上限与常驻空闲连接数；上限不得超过 MySQL 的 `max_connections`（compose 中为 `50`） |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | `localhost` / `6379` / 空 | Redis 连接 |
 | `COOKIE_SECURE` | `false` | 线上走 HTTPS 时应置 `true` |
 | `CHROMA_HOST` / `CHROMA_PORT` | `http://localhost` / `8000` | 向量库地址，`host` 必须带协议 |
@@ -248,15 +249,18 @@ mvn test
 
 ## Docker 部署
 
-仓库根目录的 [docker-compose.yml](docker-compose.yml) 编排五个服务，面向 2 vCPU / 2 GB 的小内存机器（各服务都显式设了内存上限与 JVM 堆参数）：
+仓库根目录的 [docker-compose.yml](docker-compose.yml) 编排六个服务，面向 2 vCPU / 2 GB 的小内存机器（各服务都显式设了内存上限与 JVM 堆参数）：
 
 | 服务 | 镜像 | 内存上限 |
 | --- | --- | --- |
 | `mysql` | `mysql:8.0` | 320M |
 | `redis` | `redis:7-alpine` | 48M |
-| `chroma` | `chromadb/chroma:1.0.0` | 320M |
+| `rabbitmq` | `rabbitmq:4-management` | 192M |
+| `chroma` | `chromadb/chroma:1.0.0` | 256M |
 | `backend` | `eclipse-temurin:17-jre-jammy` | 640M |
 | `nginx` | `nginx:alpine`（对外 80 端口） | 48M |
+
+合计 1504M，在 2 GB 机器（约 1.6 GiB 可用）上留约 130M 余量。
 
 **部署目录需要把两个仓库的产物拼到一起**（compose 用相对路径引用前端产物）：
 
@@ -268,7 +272,7 @@ mvn test
 ├── backend/app.jar        # 本仓库 mvn package 的产物
 ├── web/dist/              # 前端仓库 npm run build 的产物
 ├── uploads/               # 头像落盘目录（local 模式）
-└── data/                  # mysql / redis / chroma 的数据卷（首次启动自动创建）
+└── data/                  # mysql / redis / rabbitmq / chroma 的数据卷（首次启动自动创建）
 ```
 
 启动：
@@ -281,6 +285,9 @@ docker compose logs -f backend
 
 部署要点：
 
+- RabbitMQ 用专属 vhost（默认 `mh`），避免与同机其他应用抢同名队列。`RABBITMQ_DEFAULT_USER/PASS/VHOST`
+  **只在数据目录为空时生效一次**：卷里已有数据后改 `.env` 完全无效，改密码要用
+  `docker exec mh-rabbitmq rabbitmqctl change_password <user> <newpass>`。
 - Chroma 镜像**必须钉具体版本**（`1.0.0`），2.x 与 Spring AI 1.0.0 的 API 不兼容。
 - Chroma 数据目录必须挂到容器内 `/data`（1.0 起的数据目录），挂错不会报错，但重建容器即丢向量数据。
 - 导出 PDF 需要中文字体：把宿主机 `/usr/share/fonts` 只读挂进容器，并在宿主机安装 CJK 字体（如 `fonts-noto-cjk`）。

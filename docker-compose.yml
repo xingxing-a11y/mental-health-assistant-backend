@@ -54,6 +54,34 @@ services:
         limits:
           memory: 48M
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: mh-rabbitmq
+    restart: unless-stopped
+    # RABBITMQ_DEFAULT_* 只在数据目录为空时生效一次；卷里已有数据后改这里完全无效，
+    # 改密码要用 rabbitmqctl change_password，改 vhost 要用 add_vhost + set_permissions。
+    # 不映射 15672 到宿主机：管理台只在容器网络内可达，排查用 docker exec。
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME 未设置，请在 .env 中填写}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD 未设置，请在 .env 中填写}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VIRTUAL_HOST:-mh}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - mh-net
+    deploy:
+      resources:
+        # 实测 management 插件版空载 130MiB，留 60M 余量
+        limits:
+          memory: 192M
+
   backend:
     image: eclipse-temurin:17-jre-jammy
     container_name: mh-backend
@@ -67,6 +95,9 @@ services:
       REDIS_PORT: "6379"
       CHROMA_HOST: http://chroma
       CHROMA_PORT: "8000"
+      # env_file 里的 localhost 在容器里指向自己，必须覆盖成 service 名
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
       # 头像本地存储目录（对应 application.yml 的 AVATAR_UPLOAD_DIR）
       AVATAR_UPLOAD_DIR: /app/uploads/avatars
       # 默认 200 个请求线程，每个线程占栈内存，小内存机器压到 50
@@ -97,6 +128,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      # broker 未就绪时启动也不阻断（拓扑声明失败只告警），但依赖它能让首次部署更顺
+      rabbitmq:
+        condition: service_healthy
     networks:
       - mh-net
     deploy:
@@ -140,7 +174,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 320M
+          # 从 320M 收到 256M，给新增的 RabbitMQ 腾位；本机向量规模小，够用
+          memory: 256M
 
 networks:
   mh-net:

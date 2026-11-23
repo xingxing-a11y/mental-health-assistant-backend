@@ -22,6 +22,13 @@ spring:
     username: ${DB_USERNAME:}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    # 连接池上限。默认 10 在本地压测中会成为「每请求回源一次数据库」这类端点的吞吐天花板，
+    # 因此显式提高；上限受 MySQL 侧 max_connections 约束（docker-compose 中为 50），需留出余量。
+    # minimum-idle 必须显式给出：HikariCP 缺省令它等于 maximum-pool-size，
+    # 只改上限会把空闲连接一并抬到同等数量，在小内存服务器上白占内存。
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
   # Redis 只保存可重建的缓存，MySQL 仍是唯一持久化主库；连接信息统一走环境变量，缺省为本机默认实例。
   # 超时设短，Redis 不可达时快速失败并回退 MySQL，避免请求被连接等待拖住。
   data:
@@ -31,6 +38,38 @@ spring:
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DATABASE:0}
       timeout: ${REDIS_TIMEOUT:2s}
+  # RabbitMQ：高危信号事件链。
+  # 用专属 vhost 而不是默认 "/"：这台 broker 同时被其他项目使用，同一个 vhost 下队列名一旦撞车
+  # 就是互相抢消息；vhost 也便于整体删除而不误伤别人。
+  # connection-timeout 必须设短：发布动作在 SSE 路径上（对话命中高危词），默认 60 秒会让用户
+  # 在高危倾诉时界面卡住一分钟——这比收不到预警严重得多。
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    # 用户名和密码只从环境变量注入，不给默认值：写死在 yml 里会随代码进仓库。
+    username: ${RABBITMQ_USERNAME:}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:mh}
+    connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT:2s}
+    publisher-confirm-type: ${RABBITMQ_PUBLISHER_CONFIRM_TYPE:correlated}
+    publisher-returns: ${RABBITMQ_PUBLISHER_RETURNS:true}
+    template:
+      # 消息路由不到队列时退回给发送方，而不是静默丢弃。
+      mandatory: ${RABBITMQ_TEMPLATE_MANDATORY:true}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        concurrency: ${RABBITMQ_CONCURRENCY:2}
+        max-concurrency: ${RABBITMQ_MAX_CONCURRENCY:4}
+        prefetch: ${RABBITMQ_PREFETCH:10}
+        # 重试耗尽后拒绝消息，交给死信交换机；requeue=true 会变成死循环。
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: ${RABBITMQ_RETRY_MAX_ATTEMPTS:3}
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
   mvc:
     problemdetails:
       enabled: true
@@ -101,7 +140,7 @@ app:
 # 上传文件存储：type=local 写本地磁盘（默认），type=oss 写阿里云 OSS。
 # OSS 模式保持 bucket 私有，头像由后端代理读取，因此对外地址与本地模式完全一致；密钥只从环境变量注入。
 storage:
-  type: ${STORAGE_TYPE:oss}
+  type: ${STORAGE_TYPE:local}
   local:
     directory: ${AVATAR_UPLOAD_DIR:./uploads/avatars}
   oss:
@@ -130,3 +169,32 @@ job:
     cron: ${JOB_NOTIFICATION_CLEANUP_CRON:30 0 3 * * *}
     retention-days: ${JOB_NOTIFICATION_RETENTION_DAYS:180}
     batch-size: ${JOB_NOTIFICATION_CLEANUP_BATCH_SIZE:200}
+
+# 高危信号事件链的业务参数。
+risk:
+  alert:
+    republish:
+      # 投递补偿：把 publish_status 仍为 PENDING/FAILED 的事件重投一遍。
+      enabled: ${RISK_ALERT_REPUBLISH_ENABLED:true}
+      cron: ${RISK_ALERT_REPUBLISH_CRON:0 */1 * * * *}
+      # 最小间隔要大于「写库到 confirm 返回」的窗口，否则会重复投递。
+      min-age-seconds: ${RISK_ALERT_REPUBLISH_MIN_AGE_SECONDS:30}
+      max-attempts: ${RISK_ALERT_REPUBLISH_MAX_ATTEMPTS:5}
+      batch-size: ${RISK_ALERT_REPUBLISH_BATCH_SIZE:100}
+      # 幂等记录保留天数；这张表只增不减，必须定期清。
+      consumption-retention-days: ${RISK_ALERT_CONSUMPTION_RETENTION_DAYS:90}
+    followup:
+      # 24h 延迟回访；验证时可改小，但改完必须删除并重建 q.risk.followup.delay 队列才生效。
+      delay-millis: ${RISK_ALERT_FOLLOWUP_DELAY_MILLIS:86400000}
+    assessment:
+      # 标准分（0~100）阈值，达到即判高危。
+      threshold: ${RISK_ALERT_ASSESSMENT_THRESHOLD:70}
+    diary:
+      # 连续负面日记扫描：每天凌晨跑一次，只扫这段时间动过笔的用户。
+      enabled: ${RISK_ALERT_DIARY_ENABLED:true}
+      cron: ${RISK_ALERT_DIARY_CRON:0 0 3 * * *}
+      negative-days: ${RISK_ALERT_DIARY_NEGATIVE_DAYS:3}
+      # 冷却期：同一用户在该天数内不重复告警，避免持续低落的人天天收到提醒。
+      cooldown-days: ${RISK_ALERT_DIARY_COOLDOWN_DAYS:7}
+      # 扫描窗口：只看最近这些天有日记的用户，避免全表扫。
+      lookback-days: ${RISK_ALERT_DIARY_LOOKBACK_DAYS:7}
