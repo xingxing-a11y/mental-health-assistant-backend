@@ -49,6 +49,19 @@ class AssessmentServiceImplSubmitTest {
     private static final long USER_ID = 7L;
 
     @Test
+    @DisplayName("落库实体必须带上 scaleId：scale 是 exist=false 的关联对象，不写库")
+    void resultCarriesScaleId() {
+        Fixture fixture = new Fixture()
+                .question(question(11L, "SINGLE"))
+                .options(11L, option(101L, 11L, "偶尔", 1), option(102L, 11L, "经常", 3));
+
+        fixture.submit(answerWithOption(11L, 102L));
+
+        assertEquals(Long.valueOf(SCALE_ID), fixture.resultMapper.inserted.getScaleId(),
+                "漏了 scaleId 时 INSERT 会因 scale_id 非空约束在真实库上报错");
+    }
+
+    @Test
     @DisplayName("标准分达到阈值：投递高危事件，幂等键取结果编号")
     void highStandardScorePublishesAlert() {
         Fixture fixture = new Fixture()

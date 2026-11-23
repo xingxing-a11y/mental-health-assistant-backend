@@ -335,6 +335,9 @@ public class AssessmentServiceImpl implements AssessmentService {
         result.setUser(userMapper.findById(currentUserProvider.getUserId())
                 .orElseThrow(() -> new IllegalStateException("当前没有可用用户")));
         result.setScale(scale);
+        // scale 是 @TableField(exist = false) 的关联对象，不参与写库；
+        // 真正落到 scale_id 的是这个标量字段，漏了它 INSERT 会因非空约束直接崩。
+        result.setScaleId(scale.getId());
         result.setTotalScore(score);
         result.setStandardScore(maxScore == 0 ? 0D : score * 100D / maxScore);
         result.setRangeDescription(range + "，结果仅供参考，不构成诊断");
