@@ -73,25 +73,26 @@ jobs:
             "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/mindharbor/docker-compose.yml"
 
       - name: 校验服务器 .env 含 RabbitMQ 配置
-        # compose 里 rabbitmq 的三个变量用了 ${VAR:?} 必填校验：缺任何一个，
-        # docker compose up -d 会整体失败，且报错信息埋在 compose 输出里不好定位。
-        # 这里提前查一遍，缺了就直接失败并指名缺哪个。
+        # compose 里 RABBITMQ_USERNAME / RABBITMQ_PASSWORD 用了 ${VAR:?} 必填校验：
+        # 缺任何一个 docker compose up -d 都会整体失败，且报错埋在 compose 输出里不好定位。
+        # VIRTUAL_HOST 有默认值 mh，不强制要求，但缺失时提示一下实际用的是什么。
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=yes \
             "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
             'set -e; cd /opt/mindharbor
              missing=""
-             for k in RABBITMQ_USERNAME RABBITMQ_PASSWORD RABBITMQ_VIRTUAL_HOST; do
+             for k in RABBITMQ_USERNAME RABBITMQ_PASSWORD; do
                grep -qE "^${k}=.+" .env || missing="$missing $k"
              done
              if [ -n "$missing" ]; then
                echo "ERROR: 服务器 .env 缺少:$missing"
-               echo "compose 对这三个变量做了必填校验，缺失会让 docker compose up -d 直接失败。"
+               echo "compose 对这两个变量做了必填校验，缺失会让 docker compose up -d 直接失败。"
                echo "请参考 .env.example 的 RabbitMQ 段补齐后重试。"
                exit 1
              fi
-             echo "RabbitMQ 环境变量齐全"'
+             vhost=$(grep -E "^RABBITMQ_VIRTUAL_HOST=" .env | cut -d= -f2 || true)
+             echo "RabbitMQ 环境变量齐全，vhost=${vhost:-mh（默认值）}"'
 
       - name: 重启后端容器
         run: |
