@@ -301,7 +301,7 @@ public class ChatServiceImpl implements ChatService {
         if (sensitiveCheck.getLevel() == SensitiveCheckVO.Level.HIGH) {
             // 先投递预警，再返回危机提示：投递内部已 try-catch，不会挡住下面这句。
             publishHighRiskQuietly(userMessage, session);
-            sendRiskAndComplete(emitter, session, userMessage, sensitiveCheck);
+            sendRiskAndComplete(emitter, session, sensitiveCheck);
             return emitter;
         }
 
@@ -357,10 +357,19 @@ public class ChatServiceImpl implements ChatService {
     private void sendRiskAndComplete(
             SseEmitter emitter,
             ChatSession session,
-            ChatMessage userMessage,
             SensitiveCheckVO sensitiveCheck) {
         try {
+            // 危机回复必须落库：原先只走 SSE，用户一刷新就只剩自己那句话，
+            // 看起来像没人回应；管理员事后回看也看不到当时给过什么帮助。
+            ChatMessage reply = new ChatMessage();
+            reply.setSessionId(session.getId());
+            reply.setSession(session);
+            reply.setRole(ChatMessage.Role.ASSISTANT);
+            reply.setContent(crisisReply(sensitiveCheck));
+            chatMessageMapper.insert(reply);
+
             session.setHighRisk(true);
+            // 会话列表用中性描述，不把危机话术本身写进预览——那是旁人一眼能看到的地方
             session.setPreview("已触发危机干预提示");
             session.setLatestMessageAt(Instant.now());
             chatSessionMapper.updateById(session);
@@ -368,11 +377,25 @@ public class ChatServiceImpl implements ChatService {
                     "level", sensitiveCheck.getLevel().name(),
                     "message", sensitiveCheck.getPrompt(),
                     "hotline", sensitiveCheck.getHotline()));
-            send(emitter, "done", Map.of("messageId", userMessage.getId()));
+            send(emitter, "done", Map.of("messageId", reply.getId()));
             emitter.complete();
         } catch (Exception exception) {
             emitter.completeWithError(exception);
         }
+    }
+
+    /**
+     * 危机回复的最终文案。
+     *
+     * <p>拼法与前端本地渲染完全一致（正文 + 换行 + 热线），保证刷新前后看到的是同一段话；
+     * 热线为空时不留一个空的「心理援助热线：」尾巴。
+     */
+    static String crisisReply(SensitiveCheckVO sensitiveCheck) {
+        String hotline = sensitiveCheck.getHotline();
+        if (hotline == null || hotline.isBlank()) {
+            return sensitiveCheck.getPrompt();
+        }
+        return sensitiveCheck.getPrompt() + "\n心理援助热线：" + hotline;
     }
 
     /** 将ai的回复显示在对话框中并结束对话 */
