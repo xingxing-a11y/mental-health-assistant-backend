@@ -21,9 +21,13 @@ import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +36,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 
 /** 会话与消息业务实现，包含归属校验、SSE 流式回复和高危内容拦截。 */
 @Service
@@ -53,6 +57,11 @@ public class ChatServiceImpl implements ChatService {
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     private static final int MAX_PAGE_SIZE = 50;
+
+    /** 与日记等模块同口径：会话命名里的日期按东八区算。 */
+    private static final ZoneId APP_ZONE = ZoneId.of("Asia/Shanghai");
+
+    private static final DateTimeFormatter SESSION_DATE = DateTimeFormatter.ofPattern("MM-dd");
 
     private static final int MAX_KEYWORD_LENGTH = 50;
 
@@ -317,23 +326,37 @@ public class ChatServiceImpl implements ChatService {
         session.setContextCleared(false);
         chatSessionMapper.updateById(session);
 
-        //ai流式回复并显示在对话框中
-        Disposable subscription = aiConversationService.stream(input, context)
-                .subscribe(
-                        chunk -> appendChunk(emitter, reply, chunk),
-                        exception -> sendErrorAndComplete(emitter, exception),
-                        () -> completeAssistantReply(emitter, session, reply.toString()));
-        emitter.onCompletion(subscription::dispose);
+        // 生成不绑定在这条 HTTP 连接上：浏览器关掉只意味着没人看，不代表要停止生成。
+        // 原先 emitter.onCompletion → dispose 会在断开瞬间取消整个流，回复一个字都不会落库。
+        streamReply(emitter, session, aiConversationService.stream(input, context));
 
         return emitter;
     }
 
-    private void appendChunk(SseEmitter emitter, StringBuilder reply, String chunk) {
+    /** 把一段流写进会话：发送失败只标记“客户端走了”，内容继续累积并最终落库。 */
+    void streamReply(SseEmitter emitter, ChatSession session, Flux<String> chunks) {
+        StringBuilder reply = new StringBuilder();
+        AtomicBoolean clientGone = new AtomicBoolean(false);
+        chunks.subscribe(
+                chunk -> appendChunk(emitter, reply, chunk, clientGone),
+                exception -> sendErrorAndComplete(emitter, exception, clientGone),
+                () -> completeAssistantReply(emitter, session, reply.toString(), clientGone));
+    }
+
+    private void appendChunk(
+            SseEmitter emitter, StringBuilder reply, String chunk, AtomicBoolean clientGone) {
         reply.append(chunk);
+        if (clientGone.get()) {
+            // 连接已经断了，继续攒内容，但不再往断开的连接上写
+            return;
+        }
         try {
             send(emitter, "message", Map.of("content", chunk));
         } catch (Exception exception) {
-            emitter.completeWithError(exception);
+            // 只标记一次：每个 chunk 都抛一次会把日志刷满
+            clientGone.set(true);
+            log.info("[chat] client disconnected, keep generating, reason={}",
+                    exception.getClass().getSimpleName());
         }
     }
 
@@ -369,6 +392,9 @@ public class ChatServiceImpl implements ChatService {
             chatMessageMapper.insert(reply);
 
             session.setHighRisk(true);
+            // 会话列表里能直接看到首条用户消息（如「我想自杀」），共享屏幕时一眼就暴露了。
+            // 高危会话统一改名，日期只到天——同一天多条会重名，但列表里还能靠时间区分。
+            session.setName(riskSessionName());
             // 会话列表用中性描述，不把危机话术本身写进预览——那是旁人一眼能看到的地方
             session.setPreview("已触发危机干预提示");
             session.setLatestMessageAt(Instant.now());
@@ -398,11 +424,17 @@ public class ChatServiceImpl implements ChatService {
         return sensitiveCheck.getPrompt() + "\n心理援助热线：" + hotline;
     }
 
+    /** 高危会话的标题：不带用户原话，只标日期，避免会话列表里一眼看到「我想自杀」。 */
+    static String riskSessionName() {
+        return "高危关怀会话 · " + LocalDate.now(APP_ZONE).format(SESSION_DATE);
+    }
+
     /** 将ai的回复显示在对话框中并结束对话 */
     private void completeAssistantReply(
             SseEmitter emitter,
             ChatSession session,
-            String reply) {
+            String reply,
+            AtomicBoolean clientGone) {
         try {
             ChatMessage assistantMessage = new ChatMessage();
             assistantMessage.setSessionId(session.getId());
@@ -413,15 +445,26 @@ public class ChatServiceImpl implements ChatService {
             session.setPreview(toPreview(reply));
             session.setLatestMessageAt(Instant.now());
             chatSessionMapper.updateById(session);
+
+            if (clientGone.get()) {
+                // 用户关掉页面/断网：内容已经存好，重新打开会话就能看到完整回复
+                emitter.complete();
+                return;
+            }
             send(emitter, "done", Map.of("messageId", assistantMessage.getId()));
             emitter.complete();
         } catch (Exception exception) {
-            sendErrorAndComplete(emitter, exception);
+            sendErrorAndComplete(emitter, exception, clientGone);
         }
     }
 
-    private void sendErrorAndComplete(SseEmitter emitter, Throwable exception) {
+    private void sendErrorAndComplete(
+            SseEmitter emitter, Throwable exception, AtomicBoolean clientGone) {
         log.error("AI stream failed", exception);
+        if (clientGone.get()) {
+            emitter.complete();
+            return;
+        }
         try {
             send(emitter, "error", Map.of(
                     "code", "AI_SERVICE_ERROR",

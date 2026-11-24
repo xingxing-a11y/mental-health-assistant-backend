@@ -16,12 +16,15 @@ import com.mindharbor.modules.risk.service.RiskAlertService;
 import com.mindharbor.modules.user.entity.User;
 import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.security.CurrentUserProvider;
+import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
 
 /**
  * 高危对话的回复必须落库。
@@ -64,6 +67,31 @@ class ChatServiceImplRiskReplyTest {
         // 会话预览保持中性，不把危机话术写进列表
         assertEquals("已触发危机干预提示", session.getPreview());
         assertTrue(session.isHighRisk());
+        // 标题脱敏：列表里不能再出现用户原话
+        assertEquals(ChatServiceImpl.riskSessionName(), session.getName());
+        assertTrue(!session.getName().contains("轻生"), "会话标题不能带用户原话");
+    }
+
+    @Test
+    @DisplayName("浏览器断开：生成继续跑完，回复照样落库")
+    void replySurvivesClientDisconnect() throws Exception {
+        ChatServiceImpl service = serviceWith(new SensitiveCheckVO(
+                true, SensitiveCheckVO.Level.NONE, null, null));
+        session.setId(SESSION_ID);
+
+        // 模拟已经断开的连接：任何 send 都抛 IOException
+        SseEmitter brokenPipe = new SseEmitter() {
+            @Override
+            public void send(SseEventBuilder builder) throws IOException {
+                throw new IOException("Broken pipe");
+            }
+        };
+
+        service.streamReply(brokenPipe, session, Flux.just("你", "好"));
+
+        assertEquals(1, inserted.size(), "连接断了也必须把完整回复写进库");
+        assertEquals("你好", inserted.get(0).getContent());
+        assertEquals(ChatMessage.Role.ASSISTANT, inserted.get(0).getRole());
     }
 
     @Test
