@@ -95,8 +95,12 @@ jobs:
              echo "RabbitMQ 环境变量齐全，vhost=${vhost:-mh（默认值）}"'
 
       - name: 重启后端容器
+        # 必须顺带 reload nginx：docker compose up -d 可能重建 backend（例如依赖变更），
+        # 容器 IP 会变；nginx 只在启动时解析一次 upstream 主机名，会一直打旧 IP 报 502。
+        # reload 让它重新解析；万一 exec 不可用（容器刚重建）就退回 restart。
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=yes \
             "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
-            'set -e; cd /opt/mindharbor && docker compose up -d && docker compose restart backend && sleep 8 && docker compose ps'
+            'set -e; cd /opt/mindharbor && docker compose up -d && docker compose restart backend && sleep 8 && docker compose ps
+             docker compose exec -T nginx nginx -s reload || docker compose restart nginx'
