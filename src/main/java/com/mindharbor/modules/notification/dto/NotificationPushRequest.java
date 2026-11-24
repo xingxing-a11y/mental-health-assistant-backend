@@ -22,9 +22,10 @@ public class NotificationPushRequest {
     private Long userId;
 
     /**
-     * 目标用户的用户名，与 {@link #userId} 二选一。
+     * 目标用户的登录账号，与 {@link #userId} 二选一。
      *
-     * <p>管理后台只显示用户名，让管理员去查自增 ID 不现实；两者同时给出时以用户名为准。
+     * <p>只按 username 精确匹配（该列有唯一约束）；不支持昵称——昵称可重名，无法唯一定位收件人。
+     * 两者同时给出时以本字段为准。
      */
     @Size(max = 32, message = "用户名长度不能超过 32")
     private String username;

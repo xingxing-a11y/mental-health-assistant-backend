@@ -162,16 +162,16 @@ public class NotificationServiceImpl implements NotificationService {
         if (request.getScope() == Notification.Scope.ALL) {
             return null;
         }
-        // 优先按用户名解析：管理后台只显示用户名，让管理员去查自增 ID 不现实。
-        String username = request.getUsername();
-        if (username != null && !username.isBlank()) {
-            String trimmed = username.trim();
+        String target = request.getUsername();
+        if (target != null && !target.isBlank()) {
+            // 只认账号（username，有唯一约束）。昵称可以重名，不能用来定位收件人。
+            String trimmed = target.trim();
             return userMapper.findByUsername(trimmed)
-                    .orElseThrow(() -> new ResourceNotFoundException("用户不存在：" + trimmed))
+                    .orElseThrow(() -> new ResourceNotFoundException("账号不存在：" + trimmed))
                     .getId();
         }
         if (request.getUserId() == null) {
-            throw new IllegalArgumentException("定向推送必须指定用户名或用户 ID");
+            throw new IllegalArgumentException("定向推送必须指定账号或用户 ID");
         }
         userMapper.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));

@@ -2451,8 +2451,8 @@ components:
           type: string
           maxLength: 32
           description: |
-            目标用户的用户名，与 userId 二选一；两者都给时以用户名为准。
-            管理后台只显示用户名，让管理员去查自增 ID 不现实，所以支持直接填用户名。
+            目标用户的登录账号，与 userId 二选一；两者都给时以本字段为准。
+            只按 username 精确匹配（该列有唯一约束），不支持昵称——昵称可重名，无法唯一定位收件人。
         title: { type: string, maxLength: 200 }
         content: { type: string, maxLength: 2000 }
         expireAt: { type: string, format: date-time, description: 可选，未提供时默认 30 天后过期 }

@@ -17,6 +17,7 @@ public interface UserMapper extends BaseMapper<User> {
     @Select("SELECT * FROM users WHERE id = #{id} LIMIT 1")
     Optional<User> findById(Long id);
 
+    /** 按账号（用户名）查；username 有唯一约束，命中即确定唯一的人。 */
     @Select("SELECT * FROM users WHERE username = #{username} LIMIT 1")
     Optional<User> findByUsername(String username);
 
