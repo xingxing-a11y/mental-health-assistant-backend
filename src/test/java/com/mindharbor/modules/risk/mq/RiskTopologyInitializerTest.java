@@ -45,6 +45,30 @@ class RiskTopologyInitializerTest {
         assertEquals("broker down", thrown.getMessage());
     }
 
+    @Test
+    @DisplayName("启动时解绑延迟队列的遗留通配绑定：只改代码不会让 broker 上的旧绑定消失")
+    void removesLegacyWildcardBinding() {
+        List<Binding> removed = new ArrayList<>();
+        AmqpAdmin admin = (AmqpAdmin) Proxy.newProxyInstance(
+                AmqpAdmin.class.getClassLoader(),
+                new Class<?>[] {AmqpAdmin.class},
+                (proxy, method, args) -> {
+                    if ("removeBinding".equals(method.getName())) {
+                        removed.add((Binding) args[0]);
+                    }
+                    return null;
+                });
+
+        RiskTopologyInitializer.removeLegacyFollowupDelayBinding(admin);
+
+        assertEquals(1, removed.size(), "每次启动都应尝试解绑一次（不存在时是空操作）");
+        Binding binding = removed.get(0);
+        assertEquals(RiskMqConfig.FOLLOWUP_DELAY_QUEUE, binding.getDestination());
+        assertEquals(RiskMqConfig.EXCHANGE, binding.getExchange());
+        assertEquals(RiskMqConfig.RK_ALERT_ALL, binding.getRoutingKey(),
+                "要解绑的正是这条通配绑定");
+    }
+
     private static Exchange exchange() {
         return new TopicExchange("test.exchange");
     }

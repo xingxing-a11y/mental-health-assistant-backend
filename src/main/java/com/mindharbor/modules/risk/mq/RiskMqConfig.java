@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.util.List;
 import java.util.Map;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
@@ -46,6 +47,14 @@ public class RiskMqConfig {
     public static final String RK_FOLLOWUP_DUE = "risk.followup.due";
     public static final String RK_DEAD_PREFIX = "risk.dead.";
     public static final String RK_DEAD_ALL = "risk.dead.#";
+
+    /**
+     * 延迟队列只收「会建回访」的事件：测评与日记。
+     *
+     * <p>对话高危当场已经给了危机提示与热线，不建回访任务；若也投进延迟队列，
+     * 24 小时后消费者查不到 care_followups 行，只会白跑一趟并留下一条误导性的 WARN。
+     */
+    static final List<String> FOLLOWUP_DELAY_ROUTING_KEYS = List.of(RK_ASSESSMENT, RK_DIARY);
 
     /** 业务队列 → 死信路由键。新增消费者队列必须在这里登记，否则不变量测试会红。 */
     static final Map<String, String> BUSINESS_QUEUES = Map.of(
@@ -117,8 +126,13 @@ public class RiskMqConfig {
     }
 
     @Bean
-    public Binding riskFollowupDelayBinding() {
-        return BindingBuilder.bind(riskFollowupDelayQueue()).to(riskExchange()).with(RK_ALERT_ALL);
+    public Binding riskFollowupDelayAssessmentBinding() {
+        return BindingBuilder.bind(riskFollowupDelayQueue()).to(riskExchange()).with(RK_ASSESSMENT);
+    }
+
+    @Bean
+    public Binding riskFollowupDelayDiaryBinding() {
+        return BindingBuilder.bind(riskFollowupDelayQueue()).to(riskExchange()).with(RK_DIARY);
     }
 
     @Bean

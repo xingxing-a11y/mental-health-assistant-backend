@@ -119,14 +119,36 @@ class RiskMqConfigTest {
     }
 
     @Test
-    @DisplayName("三个业务队列共用 risk.alert.* 绑定，一条事件扇出给全部下游")
-    void businessQueuesShareWildcardBinding() {
+    @DisplayName("站内信与统计共用 risk.alert.* 绑定，一条事件扇出给两个下游")
+    void notifyAndStatsShareWildcardBinding() {
         for (Binding binding : new Binding[] {
-                config.riskNotifyBinding(), config.riskStatsBinding(), config.riskFollowupDelayBinding()}) {
+                config.riskNotifyBinding(), config.riskStatsBinding()}) {
             assertNotNull(binding);
             assertEquals(RiskMqConfig.EXCHANGE, binding.getExchange());
             assertEquals(RiskMqConfig.RK_ALERT_ALL, binding.getRoutingKey());
         }
+    }
+
+    @Test
+    @DisplayName("延迟队列只绑测评与日记：对话高危不建回访，进队列只会白跑一趟")
+    void followupDelayQueueOnlyBindsSourcesWithFollowup() {
+        Binding assessment = config.riskFollowupDelayAssessmentBinding();
+        Binding diary = config.riskFollowupDelayDiaryBinding();
+
+        for (Binding binding : new Binding[] {assessment, diary}) {
+            assertEquals(RiskMqConfig.EXCHANGE, binding.getExchange());
+            assertEquals(RiskMqConfig.FOLLOWUP_DELAY_QUEUE, binding.getDestination());
+        }
+        assertEquals(RiskMqConfig.RK_ASSESSMENT, assessment.getRoutingKey());
+        assertEquals(RiskMqConfig.RK_DIARY, diary.getRoutingKey());
+
+        // 通配符会把对话事件也带进来，正是这次要修的问题
+        for (String key : RiskMqConfig.FOLLOWUP_DELAY_ROUTING_KEYS) {
+            assertTrue(!key.contains("*") && !key.contains("#"), "延迟队列绑定了通配键：" + key);
+            assertTrue(!RiskMqConfig.RK_CHAT.equals(key), "对话高危不该进延迟队列");
+        }
+        assertEquals(java.util.List.of(RiskMqConfig.RK_ASSESSMENT, RiskMqConfig.RK_DIARY),
+                RiskMqConfig.FOLLOWUP_DELAY_ROUTING_KEYS);
     }
 
     @Test

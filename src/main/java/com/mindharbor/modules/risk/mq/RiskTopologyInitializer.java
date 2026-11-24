@@ -41,6 +41,18 @@ public class RiskTopologyInitializer implements ApplicationRunner {
 
     private final List<Binding> bindings;
 
+    /**
+     * 历史遗留绑定：延迟队列早期用 {@code risk.alert.*} 通配，导致对话高危也进队列排队 24 小时。
+     *
+     * <p>只改代码里的绑定声明不会让 broker 上已有的绑定消失，必须显式解绑。
+     */
+    private static final Binding LEGACY_FOLLOWUP_DELAY_BINDING = new Binding(
+            RiskMqConfig.FOLLOWUP_DELAY_QUEUE,
+            Binding.DestinationType.QUEUE,
+            RiskMqConfig.EXCHANGE,
+            RiskMqConfig.RK_ALERT_ALL,
+            null);
+
     public RiskTopologyInitializer(
             ConnectionFactory connectionFactory,
             ApplicationContext applicationContext,
@@ -64,6 +76,7 @@ public class RiskTopologyInitializer implements ApplicationRunner {
         admin.setIgnoreDeclarationExceptions(false);
         try {
             declare(admin, exchanges, queues, bindings);
+            removeLegacyFollowupDelayBinding(admin);
             log.info("[risk-mq] topology declared, exchanges={}, queues={}, bindings={}",
                     exchanges.size(), queues.size(), bindings.size());
         } catch (RuntimeException exception) {
@@ -82,5 +95,23 @@ public class RiskTopologyInitializer implements ApplicationRunner {
         exchanges.forEach(admin::declareExchange);
         queues.forEach(admin::declareQueue);
         bindings.forEach(admin::declareBinding);
+    }
+
+    /**
+     * 解绑延迟队列的历史通配绑定。
+     *
+     * <p>放在声明之后：新绑定先就位，再移除旧的，中间不会出现「测评/日记事件无处可去」的窗口。
+     * AMQP 对不存在的绑定执行 unbind 是空操作，因此每次启动都跑一遍即可，无需额外的迁移脚本。
+     *
+     * <p>失败只记日志：这一步是清理动作，不该阻断启动——最坏情况是队列里继续多收对话事件，
+     * 24 小时后被消费者丢弃，不影响任何用户可见行为。
+     */
+    static void removeLegacyFollowupDelayBinding(AmqpAdmin admin) {
+        try {
+            admin.removeBinding(LEGACY_FOLLOWUP_DELAY_BINDING);
+        } catch (RuntimeException exception) {
+            log.warn("[risk-mq] remove legacy wildcard binding failed, queue={}",
+                    RiskMqConfig.FOLLOWUP_DELAY_QUEUE, exception);
+        }
     }
 }
