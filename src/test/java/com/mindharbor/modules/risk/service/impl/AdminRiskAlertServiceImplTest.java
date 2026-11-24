@@ -15,6 +15,8 @@ import com.mindharbor.modules.risk.event.RiskAlertEvent;
 import com.mindharbor.modules.risk.mapper.RiskAlertDailyStatMapper;
 import com.mindharbor.modules.risk.mapper.RiskAlertMapper;
 import com.mindharbor.modules.risk.vo.RiskAlertVO;
+import com.mindharbor.modules.user.entity.User;
+import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.security.CurrentUserProvider;
 import java.lang.reflect.Proxy;
 import java.time.Instant;
@@ -37,6 +39,16 @@ class AdminRiskAlertServiceImplTest {
 
     /** 记录 markHandled 收到的实参，供断言处理方式/备注/处理人。 */
     private Object[] handledArgs = new Object[0];
+
+    /** 批量账号查询的返回；置空可模拟「用户已注销、账号查不到」。 */
+    private List<User> accountRows = List.of(account(9L, "risktest"));
+
+    private static User account(Long id, String username) {
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        return user;
+    }
 
     @Test
     @DisplayName("超大页码：offset 用 long 相乘，不溢出成负数")
@@ -88,8 +100,28 @@ class AdminRiskAlertServiceImplTest {
         assertEquals("chat:1", vo.alertId());
         assertEquals("CHAT_HIGH", vo.source());
         assertEquals("SENT", vo.publishStatus());
+        // 管理员要据此定位是谁、并直接发站内信
+        assertEquals("risktest", vo.username());
         // 记录是 record，字段固定，这里用字段数量确保没有塞进 refs 这类内部信息
-        assertEquals(14, RiskAlertVO.class.getRecordComponents().length);
+        assertEquals(15, RiskAlertVO.class.getRecordComponents().length);
+    }
+
+    @Test
+    @DisplayName("账号已查不到（用户注销）：username 为 null，列表不因此报错")
+    void missingAccountBecomesNull() {
+        accountRows = List.of();
+        RiskAlert alert = new RiskAlert();
+        alert.setId(2L);
+        alert.setAlertId("chat:2");
+        alert.setUserId(9L);
+        alert.setSource(RiskAlertEvent.Source.CHAT_HIGH);
+        alert.setPublishStatus(RiskAlert.PublishStatus.SENT);
+        alert.setPublishAttempts(0);
+
+        PageResult<RiskAlertVO> page = serviceWith(List.of(alert)).list(0, 20);
+
+        assertEquals(1, page.getItems().size());
+        assertNull(page.getItems().get(0).username());
     }
 
     @Test
@@ -171,6 +203,18 @@ class AdminRiskAlertServiceImplTest {
                 RiskAlertDailyStatMapper.class.getClassLoader(),
                 new Class<?>[] {RiskAlertDailyStatMapper.class},
                 (proxy, method, args) -> null);
-        return new AdminRiskAlertServiceImpl(alertMapper, statMapper, admin(ADMIN_ID));
+        UserMapper userMapper = (UserMapper) Proxy.newProxyInstance(
+                UserMapper.class.getClassLoader(),
+                new Class<?>[] {UserMapper.class},
+                (proxy, method, args) -> {
+                    if (method.getDeclaringClass() == Object.class) {
+                        return null;
+                    }
+                    if (!"findAccountsByIds".equals(method.getName())) {
+                        return null;
+                    }
+                    return accountRows;
+                });
+        return new AdminRiskAlertServiceImpl(alertMapper, statMapper, admin(ADMIN_ID), userMapper);
     }
 }

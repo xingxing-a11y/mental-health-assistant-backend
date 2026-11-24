@@ -3,6 +3,7 @@ package com.mindharbor.modules.user.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.mindharbor.modules.user.entity.User;
 import java.time.Instant;
+import java.util.Collection;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -20,6 +21,17 @@ public interface UserMapper extends BaseMapper<User> {
     /** 按账号（用户名）查；username 有唯一约束，命中即确定唯一的人。 */
     @Select("SELECT * FROM users WHERE username = #{username} LIMIT 1")
     Optional<User> findByUsername(String username);
+
+    /**
+     * 批量取账号名，供管理端列表展示。
+     *
+     * <p>只选 id 与 username：这类展示场景不需要密码哈希等敏感列，不必把整行读进内存。
+     */
+    @Select("<script>"
+            + "SELECT id, username FROM users WHERE id IN "
+            + "<foreach item='id' collection='ids' open='(' separator=',' close=')'>#{id}</foreach>"
+            + "</script>")
+    List<User> findAccountsByIds(@Param("ids") Collection<Long> ids);
 
     /**
      * 写入登录失败次数与锁定截止时间，成功登录时以 (0, null) 复位。

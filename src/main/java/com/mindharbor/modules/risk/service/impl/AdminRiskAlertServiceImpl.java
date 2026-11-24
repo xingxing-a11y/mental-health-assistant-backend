@@ -9,11 +9,16 @@ import com.mindharbor.modules.risk.mapper.RiskAlertMapper;
 import com.mindharbor.modules.risk.service.AdminRiskAlertService;
 import com.mindharbor.modules.risk.vo.RiskAlertDailyStatVO;
 import com.mindharbor.modules.risk.vo.RiskAlertVO;
+import com.mindharbor.modules.user.entity.User;
+import com.mindharbor.modules.user.mapper.UserMapper;
 import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,13 +40,17 @@ public class AdminRiskAlertServiceImpl implements AdminRiskAlertService {
 
     private final CurrentUserProvider currentUserProvider;
 
+    private final UserMapper userMapper;
+
     public AdminRiskAlertServiceImpl(
             RiskAlertMapper riskAlertMapper,
             RiskAlertDailyStatMapper dailyStatMapper,
-            CurrentUserProvider currentUserProvider) {
+            CurrentUserProvider currentUserProvider,
+            UserMapper userMapper) {
         this.riskAlertMapper = riskAlertMapper;
         this.dailyStatMapper = dailyStatMapper;
         this.currentUserProvider = currentUserProvider;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -51,11 +60,28 @@ public class AdminRiskAlertServiceImpl implements AdminRiskAlertService {
         // offset 必须用 long 参与乘法：超大页码乘出来会溢出成负数，分页直接报错。
         long offset = (long) safePage * safeSize;
 
-        List<RiskAlertVO> items = riskAlertMapper.findPage(safeSize, offset).stream()
-                .map(AdminRiskAlertServiceImpl::toVo)
+        List<RiskAlert> rows = riskAlertMapper.findPage(safeSize, offset);
+        Map<Long, String> accounts = loadAccounts(rows);
+        List<RiskAlertVO> items = rows.stream()
+                .map(row -> toVo(row, accounts.get(row.getUserId())))
                 .toList();
         long total = riskAlertMapper.countAll();
         return new PageResult<>(items, safePage, safeSize, total, totalPages(total, safeSize));
+    }
+
+    /** 一次批量取完本页涉及的账号，避免逐行查库；用户已注销时查不到，username 为 null。 */
+    private Map<Long, String> loadAccounts(List<RiskAlert> rows) {
+        List<Long> userIds = rows.stream()
+                .map(RiskAlert::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        return userMapper.findAccountsByIds(userIds).stream()
+                .filter(user -> user.getId() != null && user.getUsername() != null)
+                .collect(Collectors.toMap(User::getId, User::getUsername));
     }
 
     @Override
@@ -93,11 +119,12 @@ public class AdminRiskAlertServiceImpl implements AdminRiskAlertService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private static RiskAlertVO toVo(RiskAlert alert) {
+    private static RiskAlertVO toVo(RiskAlert alert, String username) {
         return new RiskAlertVO(
                 alert.getId(),
                 alert.getAlertId(),
                 alert.getUserId(),
+                username,
                 alert.getSource() == null ? null : alert.getSource().name(),
                 alert.getLevel() == null ? null : alert.getLevel().name(),
                 alert.getSummary(),

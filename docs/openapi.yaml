@@ -2517,6 +2517,12 @@ components:
           type: string
           description: 幂等键，形如 chat:211 / assessment:7 / diary:9:20261123
         userId: { type: integer, format: int64 }
+        username:
+          type: string
+          nullable: true
+          description: |
+            出事账号（users.username）。管理员据此定位是谁，并可直接给他发站内信。
+            用户已注销导致查不到时为 null。
         source:
           type: string
           description: 告警来源
