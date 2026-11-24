@@ -25,7 +25,7 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: mvn verify（含 64 条测试）
+      - name: mvn verify（全量单测，不依赖外部服务）
         run: mvn -B -ntp verify
 
       - name: 收集部署产物
