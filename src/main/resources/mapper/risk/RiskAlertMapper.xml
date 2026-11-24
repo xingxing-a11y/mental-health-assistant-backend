@@ -33,11 +33,13 @@
   </update>
 
   <!-- 已归档的不覆盖时间，重复调用保持幂等。 -->
-  <update id="markArchived">
+  <update id="markHandled">
     UPDATE risk_alerts
-    SET archived_at = #{archivedAt}
+    SET handle_result = #{handleResult},
+        handle_note = #{handleNote},
+        handled_by = #{handledBy},
+        archived_at = COALESCE(archived_at, #{handledAt})
     WHERE id = #{id}
-    AND archived_at IS NULL
   </update>
 
   <select id="countRecentBySource" resultType="long">

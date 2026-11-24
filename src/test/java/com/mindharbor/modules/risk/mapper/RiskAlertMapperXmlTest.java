@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.mindharbor.modules.risk.entity.HandleResult;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.HashMap;
@@ -75,17 +76,23 @@ class RiskAlertMapperXmlTest {
     }
 
     @Test
-    @DisplayName("人工归档必须带 archived_at IS NULL，重复调用不覆盖首次处理时间")
-    void markArchivedIsIdempotent() {
+    @DisplayName("人工处理写入结论与处理人，archived_at 用 COALESCE 保留首次时间")
+    void markHandledKeepsFirstHandledTime() {
         Map<String, Object> params = new HashMap<>();
         params.put("id", 1L);
-        params.put("archivedAt", Instant.parse("2026-11-23T00:00:00Z"));
+        params.put("handleResult", HandleResult.CONTACTED);
+        params.put("handleNote", "已电话联系");
+        params.put("handledBy", 42L);
+        params.put("handledAt", Instant.parse("2026-11-24T00:00:00Z"));
 
-        String sql = sqlOf("markArchived", params);
+        String sql = sqlOf("markHandled", params);
 
-        assertTrue(sql.contains("archived_at IS NULL"),
-                "缺这个条件会让重复归档覆盖时间；实际=" + sql);
-        assertEquals(2, countPlaceholders(sql));
+        assertTrue(sql.contains("COALESCE(archived_at"),
+                "重复处理时不能冲掉首次处理时间；实际=" + sql);
+        assertTrue(sql.contains("handle_result ="), "要写入处理方式；实际=" + sql);
+        assertTrue(sql.contains("handle_note ="), "要写入处理备注；实际=" + sql);
+        assertTrue(sql.contains("handled_by ="), "要写入处理人；实际=" + sql);
+        assertEquals(5, countPlaceholders(sql));
     }
 
     @Test

@@ -1,25 +1,33 @@
 package com.mindharbor.modules.risk.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mindharbor.common.PageResult;
 import com.mindharbor.common.ResourceNotFoundException;
+import com.mindharbor.modules.risk.dto.RiskAlertHandleRequest;
+import com.mindharbor.modules.risk.entity.HandleResult;
 import com.mindharbor.modules.risk.entity.RiskAlert;
 import com.mindharbor.modules.risk.event.RiskAlertEvent;
 import com.mindharbor.modules.risk.mapper.RiskAlertDailyStatMapper;
 import com.mindharbor.modules.risk.mapper.RiskAlertMapper;
 import com.mindharbor.modules.risk.vo.RiskAlertVO;
+import com.mindharbor.security.CurrentUserProvider;
 import java.lang.reflect.Proxy;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 管理端列表与归档：分页不能溢出、归档要区分"已处理"与"不存在"。 */
+/** 管理端列表与人工处理：分页不能溢出、处理要记录方式与处理人。 */
 class AdminRiskAlertServiceImplTest {
+
+    private static final long ADMIN_ID = 42L;
 
     private final List<Long> receivedOffsets = new ArrayList<>();
 
@@ -27,7 +35,8 @@ class AdminRiskAlertServiceImplTest {
 
     private RiskAlert existingAlert;
 
-    private int archiveUpdates = 1;
+    /** 记录 markHandled 收到的实参，供断言处理方式/备注/处理人。 */
+    private Object[] handledArgs = new Object[0];
 
     @Test
     @DisplayName("超大页码：offset 用 long 相乘，不溢出成负数")
@@ -80,28 +89,59 @@ class AdminRiskAlertServiceImplTest {
         assertEquals("CHAT_HIGH", vo.source());
         assertEquals("SENT", vo.publishStatus());
         // 记录是 record，字段固定，这里用字段数量确保没有塞进 refs 这类内部信息
-        assertEquals(11, RiskAlertVO.class.getRecordComponents().length);
+        assertEquals(14, RiskAlertVO.class.getRecordComponents().length);
     }
 
     @Test
-    @DisplayName("归档不存在的预警：抛 404 而不是静默成功")
-    void archiveMissingThrows() {
+    @DisplayName("处理不存在的预警：抛 404 而不是静默成功")
+    void handleMissingThrows() {
         existingAlert = null;
+        RiskAlertHandleRequest request = new RiskAlertHandleRequest();
+        request.setHandleResult(HandleResult.CONTACTED);
 
-        assertThrows(ResourceNotFoundException.class, () -> service().archive(99L));
+        assertThrows(ResourceNotFoundException.class, () -> service().handle(99L, request));
     }
 
     @Test
-    @DisplayName("归档已存在的预警：重复调用不报错（幂等）")
-    void archiveIsIdempotent() {
+    @DisplayName("处理：写入方式、去空白的备注、当前管理员编号")
+    void handleWritesResultNoteAndOperator() {
         existingAlert = new RiskAlert();
-        archiveUpdates = 0;   // 已经处理过，UPDATE 影响 0 行
+        RiskAlertHandleRequest request = new RiskAlertHandleRequest();
+        request.setHandleResult(HandleResult.CONTACTED);
+        request.setHandleNote("  已电话联系，情绪稳定  ");
 
-        service().archive(1L);   // 不抛异常即通过
+        service().handle(1L, request);
+
+        assertEquals(HandleResult.CONTACTED, handledArgs[1]);
+        assertEquals("已电话联系，情绪稳定", handledArgs[2], "备注要去掉首尾空白");
+        assertEquals(Long.valueOf(ADMIN_ID), handledArgs[3], "处理人取自当前登录管理员");
+        assertNotNull(handledArgs[4], "要带上处理时间");
+    }
+
+    @Test
+    @DisplayName("备注只填空白：存 null，不存空串")
+    void blankNoteNormalizedToNull() {
+        existingAlert = new RiskAlert();
+        RiskAlertHandleRequest request = new RiskAlertHandleRequest();
+        request.setHandleResult(HandleResult.OBSERVING);
+        request.setHandleNote("   ");
+
+        service().handle(1L, request);
+
+        assertNull(handledArgs[2]);
     }
 
     private AdminRiskAlertServiceImpl service() {
         return serviceWith(List.of());
+    }
+
+    private static CurrentUserProvider admin(long userId) {
+        return new CurrentUserProvider() {
+            @Override
+            public Optional<Long> findUserId() {
+                return Optional.of(userId);
+            }
+        };
     }
 
     private AdminRiskAlertServiceImpl serviceWith(List<RiskAlert> rows) {
@@ -120,7 +160,10 @@ class AdminRiskAlertServiceImplTest {
                         }
                         case "countAll" -> (long) rows.size();
                         case "selectById" -> existingAlert;
-                        case "markArchived" -> archiveUpdates;
+                        case "markHandled" -> {
+                            handledArgs = args;
+                            yield 1;
+                        }
                         default -> null;
                     };
                 });
@@ -128,6 +171,6 @@ class AdminRiskAlertServiceImplTest {
                 RiskAlertDailyStatMapper.class.getClassLoader(),
                 new Class<?>[] {RiskAlertDailyStatMapper.class},
                 (proxy, method, args) -> null);
-        return new AdminRiskAlertServiceImpl(alertMapper, statMapper);
+        return new AdminRiskAlertServiceImpl(alertMapper, statMapper, admin(ADMIN_ID));
     }
 }

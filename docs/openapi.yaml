@@ -1827,20 +1827,29 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
-  /admin/risk-alerts/{id}/archive:
+  /admin/risk-alerts/{id}/handle:
     put:
       tags: [Admin Risk Alert]
-      summary: 人工标记预警已处理
+      summary: 人工处理预警，记录处理方式与备注
       description: |
-        只写入 archived_at，不删除记录。重复调用幂等：已处理的预警不会覆盖首次处理时间。
+        写入 `handle_result`、`handle_note` 与处理人 `handled_by`，并记录处理时间。
+        重复调用允许改结论：`handle_result` 等字段会更新，但 `archived_at` 保留首次处理时间
+        （用 COALESCE 实现），不会因为事后补充说明而把"什么时候第一次处理的"冲掉。
+        处理备注空白会存为 null。
       parameters:
         - $ref: '#/components/parameters/RiskAlertId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RiskAlertHandleRequest' }
       responses:
         '200':
           description: 处理成功
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -2522,8 +2531,34 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: 管理员人工标记已处理的时间；未处理为 null
+          description: 首次处理时间；未处理为 null，重复处理不会覆盖
+        handleResult:
+          type: string
+          nullable: true
+          description: 处理方式；历史数据可能为空（那时只记了处理时间）
+          enum: [CONTACTED, FAMILY_NOTIFIED, REFERRED, OBSERVING, FALSE_ALARM]
+        handleNote:
+          type: string
+          nullable: true
+          description: 处理备注，例如联系了谁、对方状态如何
+        handledBy:
+          type: integer
+          format: int64
+          nullable: true
+          description: 处理人（管理员用户编号）
         createdAt: { type: string, format: date-time }
+    RiskAlertHandleRequest:
+      type: object
+      required: [handleResult]
+      properties:
+        handleResult:
+          type: string
+          description: 处理方式
+          enum: [CONTACTED, FAMILY_NOTIFIED, REFERRED, OBSERVING, FALSE_ALARM]
+        handleNote:
+          type: string
+          maxLength: 200
+          description: 处理备注；只填空白会存为 null
     RiskAlertPage:
       type: object
       required: [items, page, size, total, totalPages]

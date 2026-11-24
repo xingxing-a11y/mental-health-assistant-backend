@@ -2,12 +2,14 @@ package com.mindharbor.modules.risk.service.impl;
 
 import com.mindharbor.common.PageResult;
 import com.mindharbor.common.ResourceNotFoundException;
+import com.mindharbor.modules.risk.dto.RiskAlertHandleRequest;
 import com.mindharbor.modules.risk.entity.RiskAlert;
 import com.mindharbor.modules.risk.mapper.RiskAlertDailyStatMapper;
 import com.mindharbor.modules.risk.mapper.RiskAlertMapper;
 import com.mindharbor.modules.risk.service.AdminRiskAlertService;
 import com.mindharbor.modules.risk.vo.RiskAlertDailyStatVO;
 import com.mindharbor.modules.risk.vo.RiskAlertVO;
+import com.mindharbor.security.CurrentUserProvider;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -31,10 +33,15 @@ public class AdminRiskAlertServiceImpl implements AdminRiskAlertService {
 
     private final RiskAlertDailyStatMapper dailyStatMapper;
 
+    private final CurrentUserProvider currentUserProvider;
+
     public AdminRiskAlertServiceImpl(
-            RiskAlertMapper riskAlertMapper, RiskAlertDailyStatMapper dailyStatMapper) {
+            RiskAlertMapper riskAlertMapper,
+            RiskAlertDailyStatMapper dailyStatMapper,
+            CurrentUserProvider currentUserProvider) {
         this.riskAlertMapper = riskAlertMapper;
         this.dailyStatMapper = dailyStatMapper;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @Override
@@ -63,14 +70,27 @@ public class AdminRiskAlertServiceImpl implements AdminRiskAlertService {
 
     @Override
     @Transactional
-    public void archive(Long id) {
-        // markArchived 带 archived_at IS NULL 条件，重复调用返回 0；
-        // 但那是"已处理"而非"不存在"，所以先查一次区分两者。
+    public void handle(Long id, RiskAlertHandleRequest request) {
+        // 先查一次区分「不存在」与「已处理」：不存在报 404，已处理则允许改结论。
         RiskAlert alert = riskAlertMapper.selectById(id);
         if (alert == null) {
             throw new ResourceNotFoundException("预警不存在");
         }
-        riskAlertMapper.markArchived(id, Instant.now());
+        riskAlertMapper.markHandled(
+                id,
+                request.getHandleResult(),
+                normalizeNote(request.getHandleNote()),
+                currentUserProvider.getUserId(),
+                Instant.now());
+    }
+
+    /** 空白备注存 null 而不是空串，便于前端区分「没写」与「写了空」。 */
+    private static String normalizeNote(String note) {
+        if (note == null) {
+            return null;
+        }
+        String trimmed = note.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private static RiskAlertVO toVo(RiskAlert alert) {
@@ -85,6 +105,9 @@ public class AdminRiskAlertServiceImpl implements AdminRiskAlertService {
                 alert.getPublishAttempts() == null ? 0 : alert.getPublishAttempts(),
                 alert.getOccurredAt(),
                 alert.getArchivedAt(),
+                alert.getHandleResult() == null ? null : alert.getHandleResult().name(),
+                alert.getHandleNote(),
+                alert.getHandledBy(),
                 alert.getCreatedAt());
     }
 

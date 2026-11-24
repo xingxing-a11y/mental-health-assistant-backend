@@ -48,6 +48,14 @@ public class RiskAlert {
     /** 管理员人工标记「已处理」的时间；null 表示未处理。 */
     private Instant archivedAt;
 
+    /** 处理结论；历史数据可能为空（那时只记了处理时间）。 */
+    private HandleResult handleResult;
+
+    private String handleNote;
+
+    /** 处理人（管理员用户编号）。 */
+    private Long handledBy;
+
     private Instant createdAt = Instant.now();
 
     public enum PublishStatus {

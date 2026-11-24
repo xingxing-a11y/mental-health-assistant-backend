@@ -2,15 +2,18 @@ package com.mindharbor.modules.risk.controller;
 
 import com.mindharbor.common.ApiResponse;
 import com.mindharbor.common.PageResult;
+import com.mindharbor.modules.risk.dto.RiskAlertHandleRequest;
 import com.mindharbor.modules.risk.service.AdminRiskAlertService;
 import com.mindharbor.modules.risk.vo.RiskAlertDailyStatVO;
 import com.mindharbor.modules.risk.vo.RiskAlertVO;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,11 +50,12 @@ public class AdminRiskAlertController {
         return ApiResponse.ok(adminRiskAlertService.stats(days));
     }
 
-    /** 人工标记已处理。重复调用不会覆盖首次处理时间。 */
-    @PutMapping("/{id}/archive")
-    public ApiResponse<Void> archive(@PathVariable Long id) {
-        log.info("Archive risk alert, id={}", id);
-        adminRiskAlertService.archive(id);
+    /** 人工处理：记录处理方式与备注。重复调用只更新结论，不覆盖首次处理时间。 */
+    @PutMapping("/{id}/handle")
+    public ApiResponse<Void> handle(
+            @PathVariable Long id, @Valid @RequestBody RiskAlertHandleRequest request) {
+        log.info("Handle risk alert, id={}, result={}", id, request.getHandleResult());
+        adminRiskAlertService.handle(id, request);
         return ApiResponse.ok(null);
     }
 }

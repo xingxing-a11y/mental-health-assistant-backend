@@ -1,6 +1,7 @@
 package com.mindharbor.modules.risk.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.mindharbor.modules.risk.entity.HandleResult;
 import com.mindharbor.modules.risk.entity.RiskAlert;
 import com.mindharbor.modules.risk.event.RiskAlertEvent;
 import java.time.Instant;
@@ -31,8 +32,17 @@ public interface RiskAlertMapper extends BaseMapper<RiskAlert> {
             @Param("alertId") String alertId,
             @Param("status") RiskAlert.PublishStatus status);
 
-    /** 人工归档：已归档的行不覆盖时间，重复调用保持幂等。 */
-    int markArchived(@Param("id") Long id, @Param("archivedAt") Instant archivedAt);
+    /**
+     * 人工处理：写入处理结论与处理人。
+     *
+     * <p>{@code archived_at} 用 COALESCE 保留首次处理时间——三天后补充说明时不该把"第一次处理时间"冲掉。
+     */
+    int markHandled(
+            @Param("id") Long id,
+            @Param("handleResult") HandleResult handleResult,
+            @Param("handleNote") String handleNote,
+            @Param("handledBy") Long handledBy,
+            @Param("handledAt") Instant handledAt);
 
     /** 冷却期判断：该用户在某时间点之后是否已有同源告警。 */
     long countRecentBySource(

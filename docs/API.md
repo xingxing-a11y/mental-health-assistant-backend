@@ -275,7 +275,7 @@
 | GET | `/admin/operation-logs` | 管理员操作审计分页查询，支持 `type`、`startDate`、`endDate` |
 | GET | `/admin/risk-alerts?page=0&size=20` | 高危预警列表，按事件时间倒序；`summary` 只描述事件类型，不含用户原文 |
 | GET | `/admin/risk-alerts/stats?days=30` | 按日统计各来源告警数，`days` 取值 1~90 |
-| PUT | `/admin/risk-alerts/{id}/archive` | 人工标记已处理；重复调用幂等，不覆盖首次处理时间 |
+| PUT | `/admin/risk-alerts/{id}/handle` | 人工处理：body 传 `handleResult`（必填）+ `handleNote`（≤200 字）；重复处理只改结论，不覆盖首次处理时间 |
 | GET/PUT | `/admin/knowledge-settings` | 知识库分片参数全局配置 |
 
 推送过期时间规则：

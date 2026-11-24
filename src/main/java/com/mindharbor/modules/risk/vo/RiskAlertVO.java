@@ -19,5 +19,8 @@ public record RiskAlertVO(
         int publishAttempts,
         Instant occurredAt,
         Instant archivedAt,
+        String handleResult,
+        String handleNote,
+        Long handledBy,
         Instant createdAt) {
 }
