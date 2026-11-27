@@ -8,6 +8,7 @@ import java.lang.reflect.Proxy;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -126,6 +127,46 @@ class CacheServiceDistributedLockTest {
         assertEquals("article", value);
         assertEquals(1, loads.get());
         assertEquals(1, lock.acquireCalls.get());
+    }
+
+    @Test
+    void localLockContentionAlsoDegradesWithoutLoading() throws Exception {
+        FakeRedis redis = new FakeRedis();
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
+        CountDownLatch loaderEntered = new CountDownLatch(1);
+        CountDownLatch releaseLoader = new CountDownLatch(1);
+        AtomicInteger loads = new AtomicInteger();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<String> first = pool.submit(() -> cacheService.loadWithSingleFlight(KEY,
+                    () -> read(cacheService),
+                    () -> {
+                        loads.incrementAndGet();
+                        loaderEntered.countDown();
+                        await(releaseLoader);
+                        cacheService.put(KEY, "article", 60, 0);
+                        return "article";
+                    }));
+            assertTrue(loaderEntered.await(1, TimeUnit.SECONDS), "loader 未进入");
+
+            Future<String> second = pool.submit(() -> cacheService.loadWithSingleFlight(KEY,
+                    () -> read(cacheService),
+                    () -> {
+                        loads.incrementAndGet();
+                        return "second";
+                    }));
+
+            ExecutionException failure = assertThrows(ExecutionException.class,
+                    () -> second.get(2, TimeUnit.SECONDS));
+            assertTrue(failure.getCause() instanceof CacheRebuildInProgressException);
+
+            releaseLoader.countDown();
+            assertEquals("article", first.get(2, TimeUnit.SECONDS));
+            assertEquals(1, loads.get());
+        } finally {
+            releaseLoader.countDown();
+            pool.shutdownNow();
+        }
     }
 
     @Test
