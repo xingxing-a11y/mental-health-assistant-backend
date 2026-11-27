@@ -121,7 +121,7 @@ security:
 rag:
   chunk-size: ${RAG_CHUNK_SIZE:1000}
   chunk-overlap: ${RAG_CHUNK_OVERLAP:100}
-# 缓存 TTL 与单飞锁等待时间；只有文章详情会写"不存在"的空缓存，因此 missing-* 只出现在 article 下。
+# 缓存 TTL 与重建锁；只有文章详情会写"不存在"的空缓存，因此 missing-* 只出现在 article 下。
 cache:
   lock:
     # redisson：多实例分布式锁；local：只在本 JVM 内加锁（Redis 故障/内存吃紧时用）
