@@ -1,10 +1,12 @@
 package com.mindharbor.common;
 
+import com.mindharbor.common.cache.CacheRebuildInProgressException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -74,6 +76,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> methodNotAllowed() {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(new ApiResponse<>(405, "请求方法不支持", null));
+    }
+
+    @ExceptionHandler(CacheRebuildInProgressException.class)
+    public ResponseEntity<ApiResponse<Void>> cacheRebuildInProgress(
+            CacheRebuildInProgressException exception) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(new ApiResponse<>(503, "服务繁忙，请稍后重试", null));
     }
 
     @ExceptionHandler(Exception.class)

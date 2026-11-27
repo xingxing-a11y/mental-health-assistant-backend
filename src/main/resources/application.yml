@@ -123,6 +123,10 @@ rag:
   chunk-overlap: ${RAG_CHUNK_OVERLAP:100}
 # 缓存 TTL 与单飞锁等待时间；只有文章详情会写"不存在"的空缓存，因此 missing-* 只出现在 article 下。
 cache:
+  lock:
+    # redisson：多实例分布式锁；local：只在本 JVM 内加锁（Redis 故障/内存吃紧时用）
+    mode: ${CACHE_LOCK_MODE:redisson}
+    connect-timeout-millis: ${CACHE_LOCK_CONNECT_TIMEOUT_MILLIS:500}
   article:
     ttl-seconds: ${CACHE_ARTICLE_TTL_SECONDS:3600}
     jitter-seconds: ${CACHE_ARTICLE_JITTER_SECONDS:600}
@@ -135,7 +139,7 @@ cache:
     ttl-seconds: ${CACHE_SENSITIVE_WORD_TTL_SECONDS:1200}
     jitter-seconds: ${CACHE_SENSITIVE_WORD_JITTER_SECONDS:300}
   rebuild-lock:
-    wait-millis: ${CACHE_REBUILD_LOCK_WAIT_MILLIS:100}
+    wait-millis: ${CACHE_REBUILD_LOCK_WAIT_MILLIS:1000}
 app:
   version: ${APP_VERSION:1.0.0}
 

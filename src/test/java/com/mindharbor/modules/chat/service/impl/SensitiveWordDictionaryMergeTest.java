@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.mindharbor.common.cache.CacheProperties;
+import com.mindharbor.common.cache.CacheRebuildInProgressException;
 import com.mindharbor.common.cache.CacheService;
 import com.mindharbor.modules.chat.entity.SensitiveWord;
 import com.mindharbor.modules.chat.vo.SensitiveCheckVO;
@@ -95,6 +96,32 @@ class SensitiveWordDictionaryMergeTest {
         assertEquals(SensitiveCheckVO.Level.NONE, level, "实际=" + level);
     }
 
+    @Test
+    @DisplayName("词库重建忙时回退内置词表，不把降级异常抛给对话")
+    void rebuildInProgressFallsBackToBuiltIn() {
+        CacheProperties properties = new CacheProperties(
+                new CacheProperties.ArticleEntry(60, 10, 30, 5),
+                new CacheProperties.Entry(60, 10),
+                new CacheProperties.Entry(60, 10),
+                new CacheProperties.RebuildLock(1000));
+        CacheService busyCache = new CacheService(null, properties, null) {
+            @Override
+            public <T> T get(String key, TypeReference<T> type) {
+                return null;
+            }
+
+            @Override
+            public <T> T loadWithSingleFlight(
+                    String key, Supplier<T> cachedValueReader, Supplier<T> loader) {
+                throw new CacheRebuildInProgressException(key);
+            }
+        };
+        SensitiveWordServiceImpl busyService = new SensitiveWordServiceImpl(
+                null, null, new CurrentUserProvider(), busyCache, properties);
+
+        assertEquals(SensitiveCheckVO.Level.HIGH, busyService.inspect("我想轻生").getLevel());
+    }
+
     private static SensitiveWord word(String text, SensitiveWord.Level level) {
         SensitiveWord word = new SensitiveWord();
         word.setWord(text);
@@ -105,7 +132,7 @@ class SensitiveWordDictionaryMergeTest {
 
     /** 绕过 Redis 与单飞：直接返回预设的"库内容"。 */
     private CacheService fakeCache(CacheProperties properties) {
-        return new CacheService(null, properties) {
+        return new CacheService(null, properties, null) {
             @Override
             public <T> T get(String key, TypeReference<T> type) {
                 return null;

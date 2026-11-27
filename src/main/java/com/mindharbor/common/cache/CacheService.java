@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -36,12 +37,16 @@ public class CacheService {
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
     private final CacheProperties cacheProperties;
+    private final CacheRebuildLock cacheRebuildLock;
     private final ConcurrentMap<String, LockEntry> locks = new ConcurrentHashMap<>();
 
-    public CacheService(StringRedisTemplate stringRedisTemplate, CacheProperties cacheProperties) {
+    public CacheService(StringRedisTemplate stringRedisTemplate,
+                        CacheProperties cacheProperties,
+                        CacheRebuildLock cacheRebuildLock) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.objectMapper = CacheJsonMapper.create();
         this.cacheProperties = cacheProperties;
+        this.cacheRebuildLock = cacheRebuildLock;
     }
 
     /**
@@ -125,35 +130,98 @@ public class CacheService {
     /**
      * 按缓存键执行单飞回源，避免同一个键的并发未命中一起压到 MySQL，避免缓存击穿。
      *
-     * <p>同一 JVM 内相同键的请求会依次通过：拿到锁的请求先二次读取缓存，仍然未命中才执行回源；
-     * 拿不到锁的请求等待不超过 {@code cache.rebuild-lock.wait-millis}，随后重新读取缓存，
-     * 只有缓存依然为空时才直接回源。这样既保证正常情况下一个键只回源一次，又不会让请求无限阻塞。
+     * <p>分布式锁可用时先抢 Redis 锁：抢到才允许回源；抢不到说明别的实例正在重建，
+     * 只二次读缓存，仍为空则抛 {@link CacheRebuildInProgressException}，<b>绝不回源</b>。
+     * Redis 不可用时降级为本机 {@link ReentrantLock}，两种实现共享同一个等待预算。
      *
      * @param key               缓存键，锁按该键隔离，不使用全局锁
      * @param cachedValueReader 读取缓存并转换成返回值的方法，未命中返回 {@code null}
-     * @param loader            回源方法，仅在缓存未命中时执行
+     * @param loader            回源方法，仅在持锁且缓存未命中时执行
      */
     public <T> T loadWithSingleFlight(String key, Supplier<T> cachedValueReader, Supplier<T> loader) {
-        //领取锁条目，引用计数 +1
-        LockEntry entry = acquireLockEntry(key);
-        boolean locked = false;
+        CacheRebuildLockHandle lockHandle;
         try {
-            locked = tryLock(entry.lock);
+            lockHandle = acquireRebuildLock(key);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
             T cached = cachedValueReader.get();
             if (cached != null) {
                 return cached;
             }
-            return loader.get();
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            T cached = cachedValueReader.get();
-            return cached != null ? cached : loader.get();
-        } finally {
-            if (locked) {
-                entry.lock.unlock();
-            }
-            releaseLockEntry(key, entry);
+            throw new CacheRebuildInProgressException(key);
         }
+        try {
+            T cached = cachedValueReader.get();
+            if (cached != null) {
+                return cached;
+            }
+            if (!lockHandle.isAcquired()) {
+                throw new CacheRebuildInProgressException(key);
+            }
+            return loader.get();
+        } finally {
+            lockHandle.release();
+        }
+    }
+
+    /**
+     * 获取重建锁：优先分布式，Redis 不可用时降级本地。
+     *
+     * <p>分布式尝试与本地兜底共享同一个 deadline，避免“Redis 连接超时 2s + 本地再等 1s”。
+     */
+    private CacheRebuildLockHandle acquireRebuildLock(String key) throws InterruptedException {
+        long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis());
+        if (cacheRebuildLock != null) {
+            CacheRebuildLockHandle handle =
+                    cacheRebuildLock.tryAcquire(key, remainingMillis(deadlineNanos));
+            if (handle != null) {
+                return handle;
+            }
+        }
+        return acquireLocalRebuildLock(key, remainingMillis(deadlineNanos));
+    }
+
+    private CacheRebuildLockHandle acquireLocalRebuildLock(String key, long waitMillis)
+            throws InterruptedException {
+        LockEntry entry = acquireLockEntry(key);
+        boolean acquired;
+        try {
+            acquired = tryLock(entry.lock, waitMillis);
+        } catch (InterruptedException | RuntimeException exception) {
+            releaseLockEntry(key, entry);
+            throw exception;
+        }
+        boolean isAcquired = acquired;
+        AtomicBoolean released = new AtomicBoolean(false);
+        return new CacheRebuildLockHandle() {
+            @Override
+            public boolean isAcquired() {
+                return isAcquired;
+            }
+
+            @Override
+            public void release() {
+                if (!released.compareAndSet(false, true)) {
+                    return;
+                }
+                try {
+                    if (isAcquired) {
+                        entry.lock.unlock();
+                    }
+                } finally {
+                    releaseLockEntry(key, entry);
+                }
+            }
+        };
+    }
+
+    private long remainingMillis(long deadlineNanos) {
+        long remaining = TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime());
+        return Math.max(remaining, 0);
+    }
+
+    private long waitMillis() {
+        return cacheProperties.rebuildLock().waitMillis();
     }
 
     /**
@@ -227,8 +295,8 @@ public class CacheService {
         }
     }
 
-    private boolean tryLock(ReentrantLock lock) throws InterruptedException {
-        return lock.tryLock(cacheProperties.rebuildLock().waitMillis(), TimeUnit.MILLISECONDS);
+    private boolean tryLock(ReentrantLock lock, long waitMillis) throws InterruptedException {
+        return lock.tryLock(waitMillis, TimeUnit.MILLISECONDS);
     }
 
     /** 领取键对应的锁条目并累加引用计数，保证锁对象在有人使用期间不会被并发替换。 */

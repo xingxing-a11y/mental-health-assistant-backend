@@ -40,7 +40,7 @@ class CacheServiceMissProtectionTest {
     void cacheHitDoesNotLoad() {
         FakeRedis redis = new FakeRedis();
         redis.store.put(DETAIL_KEY, "\"cached-article\"");
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
         AtomicInteger loads = new AtomicInteger();
 
         String value = cacheService.loadDetailWithMissProtection(SPEC,
@@ -62,7 +62,7 @@ class CacheServiceMissProtectionTest {
     void missingMarkerReturnsNullWithoutEnteringSingleFlight() {
         FakeRedis redis = new FakeRedis();
         redis.store.put(MISSING_KEY, "true");
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
         AtomicInteger loads = new AtomicInteger();
 
         String value = cacheService.loadDetailWithMissProtection(SPEC,
@@ -84,7 +84,7 @@ class CacheServiceMissProtectionTest {
     @Test
     void firstMissLoadsAndCaches() {
         FakeRedis redis = new FakeRedis();
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
         AtomicInteger loads = new AtomicInteger();
 
         String value = cacheService.loadDetailWithMissProtection(SPEC,
@@ -107,7 +107,7 @@ class CacheServiceMissProtectionTest {
     @Test
     void missingDataWritesMarker() {
         FakeRedis redis = new FakeRedis();
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
         AtomicInteger loads = new AtomicInteger();
 
         String value = cacheService.loadDetailWithMissProtection(SPEC,
@@ -129,7 +129,7 @@ class CacheServiceMissProtectionTest {
     @Test
     void concurrentMissLoadsOnce() throws Exception {
         FakeRedis redis = new FakeRedis();
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
         AtomicInteger loads = new AtomicInteger();
         CountDownLatch loaderEntered = new CountDownLatch(1);
         CountDownLatch releaseLoader = new CountDownLatch(1);
@@ -162,7 +162,7 @@ class CacheServiceMissProtectionTest {
     @Test
     void mapperFailureStillReturnsValue() {
         FakeRedis redis = new FakeRedis();
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
 
         String value = cacheService.loadDetailWithMissProtection(SPEC,
                 () -> readDetail(cacheService),
@@ -178,7 +178,7 @@ class CacheServiceMissProtectionTest {
     @Test
     void loaderFailureDoesNotWriteMissingMarker() {
         FakeRedis redis = new FakeRedis();
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
 
         assertThrows(IllegalStateException.class,
                 () -> cacheService.loadDetailWithMissProtection(SPEC,
@@ -196,7 +196,7 @@ class CacheServiceMissProtectionTest {
     void redisFailureFallsBackToLoader() {
         FakeRedis redis = new FakeRedis();
         redis.failReads = true;
-        CacheService cacheService = new CacheService(redis, PROPERTIES);
+        CacheService cacheService = new CacheService(redis, PROPERTIES, null);
 
         String value = cacheService.loadDetailWithMissProtection(SPEC,
                 () -> readDetail(cacheService),

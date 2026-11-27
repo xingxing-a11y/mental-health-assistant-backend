@@ -490,14 +490,14 @@ mvn test
 - 空缓存只用于文章详情，列表不写空缓存。
 - TTL 带随机偏移，避免大量键在同一时刻集中失效造成缓存雪崩。
 
-### 单飞锁与多实例限制
+### 缓存重建锁（单飞）与多实例
 
-- 同一 JVM 内按缓存键隔离单飞锁：同一键并发未命中时，只有拿到锁的请求回源，其余请求等待后重读缓存。
-- 等待上限由 `cache.rebuild-lock.wait-millis` 控制（默认 100ms）。等待超时不会无限阻塞，而是重读缓存，仍为空时直接回源，可用性优先。
-- 本地锁没有租约和自动过期机制，因此配置中不提供 `lease-seconds` 之类的字段。
-- 本地锁只在当前 JVM 内生效。改为多实例部署后，不同实例仍可能同时回源，需要替换为经过验证的 Redis 分布式锁
-  （例如 Redisson），并处理锁过期与续租；本阶段不实现分布式锁，也不手写 Redis 锁。
-- Redis 是可丢失组件：服务在 Redis 不可用时仍能正常读写业务数据，只是暂时失去缓存收益。
+- 默认 `CACHE_LOCK_MODE=redisson`：按缓存键加 Redisson `RLock`（watchdog 自动续期），多实例同一时刻只有一个请求回源；抢不到锁的请求二次读缓存，仍为空返回 **503**（`Retry-After: 1`），敏感词链路回退内置词表，**不回源数据库**。
+- `CACHE_LOCK_MODE=local`：只在本 JVM 内按 key 加 `ReentrantLock`，单实例够用；多实例会退化为每实例一次回源。
+- Redis 不可用时自动降级本地锁：服务仍能读写业务数据，但多实例不再保证全局只回源一次。
+- 等待上限由 `cache.rebuild-lock.wait-millis` 控制（默认 1000ms）；分布式尝试与本地兜底共享这一个预算。
+- Redisson 锁按线程归属，回源必须与抢锁在同一线程执行；当前业务全同步，满足该前提。
+- 锁没有业务租约：watchdog 会为活着的线程续期；持有者永久卡死时该 key 会持续 503，需靠 DB/连接超时兜底。
 
 ### 缓存参数
 
@@ -511,7 +511,9 @@ mvn test
 | `CACHE_ANNOUNCEMENT_JITTER_SECONDS` | `600` | 公告缓存 TTL 随机偏移上限 |
 | `CACHE_SENSITIVE_WORD_TTL_SECONDS` | `1200` | 敏感词列表缓存基准 TTL |
 | `CACHE_SENSITIVE_WORD_JITTER_SECONDS` | `300` | 敏感词缓存 TTL 随机偏移上限 |
-| `CACHE_REBUILD_LOCK_WAIT_MILLIS` | `100` | 单飞锁等待上限；调大能让更多并发请求复用回源结果，但会增加等待延迟 |
+| `CACHE_LOCK_MODE` | `redisson` | 缓存重建锁实现：`redisson` 分布式 / `local` 仅本机 |
+| `CACHE_LOCK_CONNECT_TIMEOUT_MILLIS` | `500` | Redisson 连接/命令超时；超时降级本地锁 |
+| `CACHE_REBUILD_LOCK_WAIT_MILLIS` | `1000` | 抢锁等待上限；超时返回 503 / 内置词表，不再回源 |
 
 ### 启动与验证
 

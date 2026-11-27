@@ -4,6 +4,7 @@ import com.mindharbor.modules.chat.entity.SensitiveEvent;
 import com.mindharbor.modules.chat.entity.SensitiveWord;
 import com.mindharbor.common.cache.CacheKeys;
 import com.mindharbor.common.cache.CacheProperties;
+import com.mindharbor.common.cache.CacheRebuildInProgressException;
 import com.mindharbor.common.cache.CacheService;
 import com.mindharbor.modules.chat.mapper.SensitiveEventMapper;
 import com.mindharbor.modules.chat.mapper.SensitiveWordMapper;
@@ -127,6 +128,9 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
             if (words != null && !words.isEmpty()) {
                 return mergeWithBuiltIn(words);
             }
+        } catch (CacheRebuildInProgressException exception) {
+            // 词库正在被其他实例重建：预期内降级，用内置词表兜底，不记为故障
+            log.warn("Sensitive word cache is rebuilding, fallback to built-in words");
         } catch (RuntimeException exception) {
             // 词库异常信息里可能带上敏感词原文，日志只记录异常类型，完整堆栈放到 DEBUG。
             log.error("Sensitive word dictionary unavailable, fallback to built-in words, error={}",

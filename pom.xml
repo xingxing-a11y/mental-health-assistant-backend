@@ -21,6 +21,7 @@
     <openpdf.version>2.0.3</openpdf.version>
     <aliyun-oss.version>3.18.2</aliyun-oss.version>
     <jsoup.version>1.18.3</jsoup.version>
+    <redisson.version>3.52.0</redisson.version>
   </properties>
 
   <repositories>
@@ -113,6 +114,13 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-redis</artifactId>
+    </dependency>
+
+    <!-- Redisson：只用它的分布式锁 RLock（watchdog 续期），不引入 spring-data 集成。 -->
+    <dependency>
+      <groupId>org.redisson</groupId>
+      <artifactId>redisson</artifactId>
+      <version>${redisson.version}</version>
     </dependency>
 
     <!-- RabbitMQ：高危信号事件链的持久化队列；24h 延迟回访由 TTL+DLX 实现。 -->
