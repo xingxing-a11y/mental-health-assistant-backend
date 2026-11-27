@@ -43,6 +43,11 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
     /** 词库为空或不可用时的兜底词表，保证服务端校验不因数据问题失效。 */
     private static final List<SensitiveWord> BUILT_IN_WORDS = buildBuiltInWords();
 
+    /** 空词库缓存的短 TTL：挡住每条消息查库，又不会把“暂时没有词”固化太久。 */
+    private static final int EMPTY_TTL_SECONDS = 30;
+
+    private static final int EMPTY_JITTER_SECONDS = 10;
+
     private final SensitiveWordMapper sensitiveWordMapper;
 
     private final SensitiveEventMapper sensitiveEventMapper;
@@ -171,16 +176,22 @@ public class SensitiveWordServiceImpl implements SensitiveWordService {
         return cached == null ? null : cached.stream().map(SensitiveWordCacheEntry::toEntity).toList();
     }
 
-    /** 回源启用词库：空词库不回填缓存，避免把"暂时没有词条"固化成长期结果。 */
+    /**
+     * 回源启用词库：空词库也回填短 TTL 的 {@code []}，避免每条消息都查库。
+     *
+     * <p>空结果只代表“数据库暂时没有启用词”，最终生效词表仍会在读取时与内置词表合并；
+     * 30s 短 TTL 用于兜住“直接改库、绕过管理端失效”的场景，正常加词由
+     * {@code SensitiveWordAdminServiceImpl.invalidateCaches()} 立即清除。
+     */
     private List<SensitiveWord> loadEnabledWordsFromDatabase() {
         List<SensitiveWord> loaded = sensitiveWordMapper.findEnabled();
-        if (loaded != null && !loaded.isEmpty()) {
-            cacheService.put(CacheKeys.SENSITIVE_WORD_ENABLED,
-                    loaded.stream().map(SensitiveWordCacheEntry::from).toList(),
-                    cacheProperties.sensitiveWord().ttlSeconds(),
-                    cacheProperties.sensitiveWord().jitterSeconds());
-        }
-        return loaded;
+        List<SensitiveWord> words = loaded == null ? List.of() : loaded;
+        boolean empty = words.isEmpty();
+        cacheService.put(CacheKeys.SENSITIVE_WORD_ENABLED,
+                words.stream().map(SensitiveWordCacheEntry::from).toList(),
+                empty ? EMPTY_TTL_SECONDS : cacheProperties.sensitiveWord().ttlSeconds(),
+                empty ? EMPTY_JITTER_SECONDS : cacheProperties.sensitiveWord().jitterSeconds());
+        return words;
     }
 
     /** 审计只落词条编号与级别，绝不写入用户原文。 */
