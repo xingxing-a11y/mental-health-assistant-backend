@@ -106,40 +106,24 @@ public class ArticleServiceImpl implements ArticleService {
     public Article get(Long id) {
         String detailKey = CacheKeys.articleDetail(id);
         String missingKey = CacheKeys.articleMissing(id);
-        Article cached = readDetailCache(detailKey);
-        if (cached != null) {
-            return cached;
-        }
-        if (cacheService.exists(missingKey)) {
+        CacheProperties.ArticleEntry config = cacheProperties.article();
+        Article article = cacheService.loadDetailWithMissProtection(
+                new CacheService.MissProtection(detailKey, missingKey,
+                        config.ttlSeconds(), config.jitterSeconds(),
+                        config.missingTtlSeconds(), config.missingJitterSeconds()),
+                () -> readDetailCache(detailKey),
+                ArticleCacheEntry::from,
+                () -> articleMapper.findById(id).orElse(null));
+        if (article == null) {
             throw new ResourceNotFoundException("文章不存在");
         }
-        return cacheService.loadWithSingleFlight(
-                detailKey,
-                () -> readDetailCache(detailKey),
-                () -> loadDetailFromDatabase(id, detailKey, missingKey));
+        return article;
     }
 
     /** 读取详情缓存；不存在的文章由空缓存键单独判断，不写入这里。 */
     private Article readDetailCache(String detailKey) {
         ArticleCacheEntry cached = cacheService.get(detailKey, ArticleCacheEntry.class);
         return cached == null ? null : cached.toEntity();
-    }
-
-    /** 回源详情：数据不存在时写入短 TTL 空缓存，拦截持续查询不存在编号的请求。 */
-    private Article loadDetailFromDatabase(Long id, String detailKey, String missingKey) {
-        if (cacheService.exists(missingKey)) {
-            throw new ResourceNotFoundException("文章不存在");
-        }
-        Article article = articleMapper.findById(id).orElse(null);
-        if (article == null) {
-            cacheService.put(missingKey, Boolean.TRUE,
-                    cacheProperties.article().missingTtlSeconds(),
-                    cacheProperties.article().missingJitterSeconds());
-            throw new ResourceNotFoundException("文章不存在");
-        }
-        cacheService.put(detailKey, ArticleCacheEntry.from(article),
-                cacheProperties.article().ttlSeconds(), cacheProperties.article().jitterSeconds());
-        return article;
     }
 
     @Override

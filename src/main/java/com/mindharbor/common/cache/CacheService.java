@@ -4,11 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,6 +153,77 @@ public class CacheService {
                 entry.lock.unlock();
             }
             releaseLockEntry(key, entry);
+        }
+    }
+
+    /**
+     * 详情型缓存的穿透保护：缓存未命中时按 key 单飞回源；数据不存在则写入短 TTL 空值标记。
+     *
+     * <p>与 {@link #loadWithSingleFlight} 的区别是额外处理「数据确实不存在」：命中空值标记时直接
+     * 返回 {@code null}，不再查库；回源结果为 {@code null} 时写入标记，避免同一个不存在的编号
+     * 反复穿透到 MySQL。
+     *
+     * <p>约定：{@code loader} 返回 {@code null} 只能表示「确定不存在」，数据库或网络失败必须抛出
+     * 异常；用 {@code null} 表示失败会把临时故障缓存成空值标记，造成最长一个标记 TTL 的误 404。
+     *
+     * <p>命中详情缓存时只读一次缓存；未命中时与 {@link #loadWithSingleFlight} 一样，在锁内会再读
+     * 一次，避免等锁期间缓存已被其他线程填好却仍去查库。
+     *
+     * @return 缓存或回源结果；数据不存在返回 {@code null}，由调用方决定抛什么业务异常
+     */
+    public <T> T loadDetailWithMissProtection(MissProtection spec,
+                                              Supplier<T> cachedValueReader,
+                                              Function<T, Object> cacheValueMapper,
+                                              Supplier<T> loader) {
+        // 快速路径：正常命中只付一次缓存读，不额外查空值标记
+        T cached = cachedValueReader.get();
+        if (cached != null) {
+            return cached;
+        }
+        if (exists(spec.missingKey())) {
+            return null;
+        }
+        return loadWithSingleFlight(spec.key(), cachedValueReader, () -> {
+            // 等锁期间可能已有别的线程写入空值标记
+            if (exists(spec.missingKey())) {
+                return null;
+            }
+            T value = loader.get();
+            if (value == null) {
+                put(spec.missingKey(), Boolean.TRUE,
+                        spec.missingTtlSeconds(), spec.missingJitterSeconds());
+                return null;
+            }
+            try {
+                put(spec.key(), cacheValueMapper.apply(value),
+                        spec.ttlSeconds(), spec.jitterSeconds());
+            } catch (RuntimeException exception) {
+                // 缓存对象转换失败属于缓存层问题，不能影响已经查到的业务数据
+                log.warn("Cache value mapping failed, key={}, error={}",
+                        spec.key(), exception.getClass().getSimpleName());
+                log.debug("Cache value mapping failure detail, key={}", spec.key(), exception);
+            }
+            return value;
+        });
+    }
+
+    /** 详情型缓存的键与 TTL 配置；key 与 missingKey 必须不同，否则写入会互相覆盖。 */
+    public record MissProtection(String key, String missingKey,
+                                 int ttlSeconds, int jitterSeconds,
+                                 int missingTtlSeconds, int missingJitterSeconds) {
+
+        public MissProtection {
+            Objects.requireNonNull(key, "key");
+            Objects.requireNonNull(missingKey, "missingKey");
+            if (key.equals(missingKey)) {
+                throw new IllegalArgumentException("key and missingKey must differ");
+            }
+            if (ttlSeconds < 1 || missingTtlSeconds < 1) {
+                throw new IllegalArgumentException("ttlSeconds must be at least 1");
+            }
+            if (jitterSeconds < 0 || missingJitterSeconds < 0) {
+                throw new IllegalArgumentException("jitterSeconds must not be negative");
+            }
         }
     }
 
